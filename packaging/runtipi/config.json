@@ -1,0 +1,39 @@
+{
+  "$schema": "https://schemas.runtipi.io/app-info.json",
+  "name": "Lockpad",
+  "id": "lockpad",
+  "available": true,
+  "short_desc": "Self-hosted, privacy-first notes",
+  "author": "Colbysdovi",
+  "port": 5173,
+  "categories": ["utilities"],
+  "description": "Self-hosted, privacy-first note-taking: tags, folders, note-to-note links, rich text, full-text search, and per-note end-to-end encryption. Zero outbound network requests.",
+  "tipi_version": 2,
+  "version": "1.0.0",
+  "source": "https://github.com/Colbysdovi/Lockpad-Public",
+  "website": "https://github.com/Colbysdovi/Lockpad-Public",
+  "exposable": true,
+  "supported_architectures": ["amd64", "arm64"],
+  "form_fields": [
+    {
+      "type": "password",
+      "label": "App login password (blank = no login screen)",
+      "env_variable": "APP_PASSWORD",
+      "required": false
+    },
+    {
+      "type": "random",
+      "label": "Session secret (auto-generated)",
+      "env_variable": "SESSION_SECRET",
+      "min": 48,
+      "required": true
+    },
+    {
+      "type": "random",
+      "label": "Database password (auto-generated)",
+      "env_variable": "POSTGRES_PASSWORD",
+      "min": 32,
+      "required": true
+    }
+  ]
+}

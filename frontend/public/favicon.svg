@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Lockpad mark: terracotta padlock plate with a white keyhole.
+       #A34B3C is the light theme's primary token, the same terracotta the header
+       logo and every primary button are drawn in. It used to be Brandeis blue
+       (#006dff), left over from before the palette landed: nothing else in the app
+       is blue, so the splash screen opened on a colour the app then never used
+       again. White on colour rather than colour on cream, because this is also the
+       browser and home-screen icon and sits on backgrounds we do not control.
+       The colour is hard-coded: an SVG loaded through an img tag gets no CSS
+       variables from the page. The inline Logo component in the header is the
+       themed one, so if the primary token ever changes, change this file with it.
+       Keep this comment free of double hyphens: they are illegal inside an XML
+       comment and silently break the whole file (measured: naturalWidth 0). -->
+  <rect width="32" height="32" rx="7" fill="#A34B3C"/>
+  <path d="M10 15v-3a6 6 0 0 1 12 0v3" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+  <rect x="7" y="14" width="18" height="12" rx="3.5" fill="#FFFFFF"/>
+  <circle cx="16" cy="19.5" r="2" fill="#A34B3C"/>
+  <rect x="15.2" y="20" width="1.6" height="4" rx="0.8" fill="#A34B3C"/>
+</svg>

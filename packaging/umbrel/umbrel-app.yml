@@ -1,0 +1,29 @@
+manifestVersion: 1
+id: lockpad
+category: notes
+name: Lockpad
+version: "1.0.0"
+tagline: Self-hosted, privacy-first notes
+description: >-
+  Lockpad is a self-hosted, privacy-first note-taking app: tags, folders,
+  note-to-note links, rich text, full-text search, and per-note end-to-end
+  encryption.
+
+
+  It runs entirely on your own hardware and makes zero outbound network
+  requests — no analytics, no telemetry, no external CDNs or fonts. Locked notes
+  are encrypted in your browser; the server only ever stores ciphertext for them.
+releaseNotes: What's new in v1.0.0 — https://github.com/Colbysdovi/Lockpad-Public/releases/tag/v1.0.0
+developer: Colbysdovi
+website: https://github.com/Colbysdovi/Lockpad-Public
+dependencies: []
+repo: https://github.com/Colbysdovi/Lockpad-Public
+support: https://github.com/Colbysdovi/Lockpad-Public/issues
+port: 5173
+gallery: []
+path: ""
+deterministicPassword: true
+defaultUsername: ""
+defaultPassword: ""
+submitter: Colbysdovi
+submission: ""

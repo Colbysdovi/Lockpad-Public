@@ -1,0 +1,33 @@
+# Optional overlay: serve Lockpad over HTTPS directly on your own network, with
+# no Tailscale client needed on the machine you are using.
+#
+# The tailnet sidecar answers the "reach my notes from anywhere" problem, but it
+# makes a third party part of the path to a machine sitting ten feet away. This
+# overlay is the local answer: nginx terminates TLS itself, using a certificate
+# you issue and trust on your own devices. Nothing leaves your network, and no
+# certificate authority — public or otherwise — is consulted.
+#
+# It composes with the Tailscale overlay rather than replacing it; run both and
+# you get the tailnet URL from outside and the LAN URL from inside.
+#
+# Setup (certificates, trusting them on macOS/iOS/Android): DEPLOY.md §9.
+#   docker compose -f docker-compose.yml -f docker-compose.lan-tls.yml up -d
+#
+# Requires ./certs/lockpad.pem and ./certs/lockpad-key.pem on the host.
+
+services:
+  frontend:
+    volumes:
+      # The TLS server block is mounted rather than baked into the image: nginx
+      # will not start if ssl_certificate names a file that does not exist, so a
+      # deployment without certificates must never see this config at all.
+      - ./frontend/nginx-tls.conf:/etc/nginx/conf.d/tls.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    ports:
+      # 5174 pairs with the HTTP port 5173. It is NOT 5443: NAS web consoles
+      # commonly sit there (UGOS Pro does), and a port collision here surfaces as
+      # a container that will not start rather than anything self-explanatory.
+      # Defaults to every interface, because reaching this from your other
+      # machines is the entire point. Narrow it with FRONTEND_TLS_BIND=<ip>: if
+      # the NAS has more than one network and you only want it on one of them.
+      - "${FRONTEND_TLS_BIND-}${FRONTEND_TLS_PORT-5174}:443"

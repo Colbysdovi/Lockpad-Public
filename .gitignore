@@ -1,0 +1,22 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.log
+logs/
+backend/logs/
+coverage/
+.DS_Store
+prisma/migrations/dev.db*
+backups/
+backend/.env
+frontend/dist
+
+# Local-only operational notes — real hostnames, IPs and paths. Never committed.
+*.local.md
+*.rtf
+
+# Self-issued TLS certificates for direct LAN HTTPS (DEPLOY.md §9).
+# Contains a PRIVATE KEY — never commit, never publish.
+certs/

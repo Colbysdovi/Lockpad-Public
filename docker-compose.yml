@@ -1,0 +1,104 @@
+# Lockpad — self-hosted, privacy-first notes.
+# Three containers on an internal network. Postgres is intentionally NOT given a
+# `ports:` mapping, so it is unreachable from the host or the network — only the
+# `backend` service can talk to it over the `lockpad_internal` bridge.
+#
+# Public access is provided exclusively via Tailscale (`tailscale serve`, never
+# `funnel`) fronting the `frontend` service. See README for the serve config.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - lockpad_internal
+    # NO ports: mapping — Postgres is never exposed outside the internal network.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      BACKEND_PORT: ${BACKEND_PORT}
+      LOG_DIR: ${LOG_DIR}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      NODE_ENV: production
+      # App auth — empty APP_PASSWORD disables auth.
+      APP_PASSWORD: ${APP_PASSWORD:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      # The frontend's HOST binding, passed in so the backend can SEE it. It is a
+      # Docker port mapping, applied by the daemon before any of our code runs, so
+      # the app has no other way to know whether it is reachable beyond this machine
+      # — and "reachable on the LAN with no password set" is the one configuration
+      # pair that quietly undoes the app's privacy promise. The backend warns about
+      # it at startup and in the app itself.
+      FRONTEND_BIND: ${FRONTEND_BIND-127.0.0.1:}
+      # Behind nginx every request arrives from the frontend container; this lets the
+      # rate limiter tell clients apart. Safe here only because the backend publishes
+      # no host port — nothing but the frontend container can reach it.
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    volumes:
+      # Logs go to a NAS folder, never a cloud service (privacy req §4.1).
+      - ./logs:/var/log/lockpad
+    networks:
+      - lockpad_internal
+    # Exposed only to the internal network + whatever fronts it (frontend/tailscale).
+    expose:
+      - "${BACKEND_PORT}"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - lockpad_internal
+    # Private by default (localhost only) — front it with `tailscale serve`.
+    # To reach it directly on the LAN/tailnet, set FRONTEND_BIND= (empty) in .env
+    # to bind 0.0.0.0, or FRONTEND_BIND=<ip>: for a specific interface.
+    ports:
+      - "${FRONTEND_BIND-127.0.0.1:}${FRONTEND_PORT}:80"
+
+  # Optional: run Tailscale as a sidecar instead of installing the daemon on the
+  # NAS host. Uncomment and provide an auth key. Then `tailscale serve` inside it.
+  # tailscale:
+  #   image: tailscale/tailscale:latest
+  #   hostname: lockpad
+  #   environment:
+  #     TS_AUTHKEY: ${TS_AUTHKEY}
+  #     TS_STATE_DIR: /var/lib/tailscale
+  #     TS_SERVE_CONFIG: /config/serve.json
+  #   volumes:
+  #     - tailscale_state:/var/lib/tailscale
+  #     - ./tailscale/serve.json:/config/serve.json:ro
+  #   cap_add:
+  #     - net_admin
+  #   networks:
+  #     - lockpad_internal
+
+networks:
+  lockpad_internal:
+    driver: bridge
+
+volumes:
+  pgdata:
+  # tailscale_state:

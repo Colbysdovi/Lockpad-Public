@@ -1,0 +1,262 @@
+/* Animated-icon styles — a native-CSS port of the @jis3r/icons (pqoqubbw) motion
+   designs. Each icon's <svg> carries `ai-<kebab>`; each child carries `ai-p{i}`
+   (its index in the lucide node list). Hover (or a forced `animate` prop) adds the
+   `animate` class to the svg, which drives the transitions/keyframes below.
+   AnimatedIcon.tsx withholds `animate` under prefers-reduced-motion, so motion is
+   opt-out for free. Icons render fully at rest — animation only enhances hover. */
+
+.lucide-anim {
+  overflow: visible; /* let strokes/translations play outside the 24×24 box */
+}
+
+/* ---- shared keyframes -------------------------------------------------- */
+@keyframes ai-draw-14 { 0% { opacity: 0; stroke-dashoffset: 14; } 15% { opacity: 1; stroke-dashoffset: 14; } 100% { opacity: 1; stroke-dashoffset: 0; } }
+@keyframes ai-draw-17 { 0% { opacity: 0; stroke-dashoffset: 17; } 15% { opacity: 1; stroke-dashoffset: 17; } 100% { opacity: 1; stroke-dashoffset: 0; } }
+@keyframes ai-draw-8  { 0% { opacity: 0; stroke-dashoffset: 8; }  15% { opacity: 1; stroke-dashoffset: 8; }  100% { opacity: 1; stroke-dashoffset: 0; } }
+@keyframes ai-draw-85 { 0% { opacity: 0; stroke-dashoffset: 8.5; } 15% { opacity: 1; stroke-dashoffset: 8.5; } 100% { opacity: 1; stroke-dashoffset: 0; } }
+@keyframes ai-check-24 { 0% { stroke-dashoffset: 24; opacity: 0; } 33% { stroke-dashoffset: 24; opacity: 0; } 100% { stroke-dashoffset: 0; opacity: 1; } }
+@keyframes ai-check-9  { 0% { stroke-dashoffset: 9; opacity: 0; }  33% { stroke-dashoffset: 9; opacity: 0; }  100% { stroke-dashoffset: 0; opacity: 1; } }
+@keyframes ai-fade { 0% { opacity: 0; } 100% { opacity: 1; } }
+
+/* ---- Archive: lid lifts, body drops ------------------------------------ */
+.ai-archive .ai-p0, .ai-archive .ai-p1, .ai-archive .ai-p2 { transition: transform 0.2s ease-in; }
+.ai-archive.animate .ai-p0 { transform: translateY(-2px); }
+.ai-archive.animate .ai-p1, .ai-archive.animate .ai-p2 { transform: translateY(2px); }
+
+/* ---- Bold: stroke thickens --------------------------------------------- */
+.ai-bold .ai-p0 { transition: stroke-width 0.6s var(--ease-playful); }
+.ai-bold.animate .ai-p0 { stroke-width: 3.5; }
+
+/* ---- Check / ListChecks: the tick draws itself ------------------------- */
+.ai-check .ai-p0 { stroke-dasharray: 24; stroke-dashoffset: 0; transition: stroke-dashoffset 0.125s ease-out, opacity 0.125s ease-out; }
+.ai-check.animate .ai-p0 { animation: ai-check-24 0.5s ease-out backwards; }
+.ai-list-checks .ai-p0, .ai-list-checks .ai-p1 { stroke-dasharray: 9; stroke-dashoffset: 0; transition: stroke-dashoffset 0.125s ease-out, opacity 0.125s ease-out; }
+.ai-list-checks.animate .ai-p0, .ai-list-checks.animate .ai-p1 { animation: ai-check-9 0.5s ease-out backwards; }
+
+/* ---- Chevrons: nudge in their pointing direction ----------------------- */
+.ai-chevron-down .ai-p0 { transition: transform 0.2s ease-in; }
+.ai-chevron-down.animate .ai-p0 { transform: translateY(3px); }
+.ai-chevron-right .ai-p0 { transition: transform 0.2s ease-in; }
+.ai-chevron-right.animate .ai-p0 { transform: translateX(3px); }
+.ai-chevrons-up-down .ai-p0, .ai-chevrons-up-down .ai-p1 { transition: transform 0.2s ease-in; }
+.ai-chevrons-up-down.animate .ai-p0 { transform: translateY(3px); }
+.ai-chevrons-up-down.animate .ai-p1 { transform: translateY(-3px); }
+
+/* ---- Copy: sheets separate --------------------------------------------- */
+.ai-copy .ai-p0, .ai-copy .ai-p1 { transition: transform 0.5s var(--ease-follow); }
+.ai-copy.animate .ai-p0 { transform: translate(-3px, -3px); }
+.ai-copy.animate .ai-p1 { transform: translate(3px, 3px); }
+
+/* ---- Plus / FolderPlus / X / XCircle: strokes draw in ------------------ */
+.ai-plus .ai-p0, .ai-plus .ai-p1 { stroke-dasharray: 14; stroke-dashoffset: 0; transition: stroke-dashoffset 0.15s ease-out; }
+.ai-plus.animate .ai-p0 { opacity: 0; animation: ai-draw-14 0.3s ease-out forwards; }
+.ai-plus.animate .ai-p1 { opacity: 0; animation: ai-draw-14 0.3s ease-out 0.25s forwards; }
+.ai-folder-minus .ai-p0 { stroke-dasharray: 8; stroke-dashoffset: 0; transition: stroke-dashoffset 0.15s ease-out; }
+.ai-folder-minus.animate .ai-p0 { opacity: 0; animation: ai-draw-8 0.3s ease-out forwards; }
+.ai-folder-plus .ai-p0, .ai-folder-plus .ai-p1 { stroke-dasharray: 8; stroke-dashoffset: 0; transition: stroke-dashoffset 0.15s ease-out; }
+.ai-folder-plus.animate .ai-p1 { opacity: 0; animation: ai-draw-8 0.3s ease-out forwards; }
+.ai-folder-plus.animate .ai-p0 { opacity: 0; animation: ai-draw-8 0.3s ease-out 0.25s forwards; }
+.ai-x .ai-p0, .ai-x .ai-p1 { stroke-dasharray: 17; stroke-dashoffset: 0; transition: stroke-dashoffset 0.15s ease-out; }
+.ai-x.animate .ai-p0 { opacity: 0; animation: ai-draw-17 0.3s ease-out forwards; }
+.ai-x.animate .ai-p1 { opacity: 0; animation: ai-draw-17 0.3s ease-out 0.25s forwards; }
+.ai-x-circle .ai-p1, .ai-x-circle .ai-p2 { stroke-dasharray: 8.5; stroke-dashoffset: 0; transition: stroke-dashoffset 0.15s ease-out; }
+.ai-x-circle.animate .ai-p1 { opacity: 0; animation: ai-draw-85 0.3s ease-out forwards; }
+.ai-x-circle.animate .ai-p2 { opacity: 0; animation: ai-draw-85 0.3s ease-out 0.25s forwards; }
+
+/* ---- LogOut: the arrow steps out --------------------------------------- */
+.ai-log-out .ai-p1, .ai-log-out .ai-p2 { transition: transform 0.3s ease-in-out; }
+.ai-log-out.animate .ai-p1, .ai-log-out.animate .ai-p2 { animation: ai-logout 0.6s ease-in-out; }
+@keyframes ai-logout { 0% { transform: translateX(0); } 50% { transform: translateX(2px); } 100% { transform: translateX(0); } }
+
+/* ---- NotebookPen: the pen wiggles -------------------------------------- */
+.ai-notebook-pen .ai-p5 { transform-box: fill-box; transform-origin: bottom left; transition: transform 0.25s ease-in-out; }
+.ai-notebook-pen.animate .ai-p5 { animation: ai-pen 0.5s ease-in-out 2; }
+@keyframes ai-pen { 0%, 100% { transform: rotate(0) translate(0, 0); } 25% { transform: rotate(-4deg) translate(-1px, 1.5px); } 75% { transform: rotate(4deg) translate(1.5px, -1px); } }
+
+/* ---- PanelLeftClose: divider + chevron slide left ---------------------- */
+.ai-panel-left-close .ai-p1, .ai-panel-left-close .ai-p2 { transition: transform 0.2s ease-in; }
+.ai-panel-left-close.animate .ai-p1 { transform: translateX(-2px); transition-delay: 0.05s; }
+.ai-panel-left-close.animate .ai-p2 { transform: translateX(-2px); }
+
+/* ---- RotateCcw / Search / Tag / Settings2 / Moon: whole-glyph ---------- */
+.ai-rotate-ccw { transition: transform 0.4s var(--ease-playful); transform-origin: center; }
+.ai-rotate-ccw.animate { transform: rotate(-50deg); }
+.ai-search.animate { animation: ai-search-bounce 1s ease-in-out; }
+@keyframes ai-search-bounce { 0%, 100% { transform: translate(0, 0); } 25% { transform: translateY(-4px); } 50% { transform: translateX(-3px); } }
+.ai-tag.animate { transform-origin: top left; animation: ai-tag-rot 0.5s ease-in-out; }
+@keyframes ai-tag-rot { 0% { transform: rotate(0); } 40% { transform: rotate(10deg); } 80% { transform: rotate(-5deg); } 100% { transform: rotate(0); } }
+.ai-moon { transition: transform 0.4s ease; transform-origin: center; }
+.ai-moon.animate { transform: rotate(-18deg); }
+
+/* ---- Settings2: the slider knobs slide --------------------------------- */
+.ai-settings-2 .ai-p2, .ai-settings-2 .ai-p3 { transition: transform 0.3s ease-in-out; }
+.ai-settings-2.animate .ai-p2 { transform: translateX(-3px); }
+.ai-settings-2.animate .ai-p3 { transform: translateX(3px); }
+
+/* ---- Sun: rays fade out then back in, staggered ------------------------ */
+.ai-sun .ai-p1, .ai-sun .ai-p2, .ai-sun .ai-p3, .ai-sun .ai-p4,
+.ai-sun .ai-p5, .ai-sun .ai-p6, .ai-sun .ai-p7, .ai-sun .ai-p8 { opacity: 1; transition: opacity 0.3s ease; }
+.ai-sun.animate .ai-p1, .ai-sun.animate .ai-p2, .ai-sun.animate .ai-p3, .ai-sun.animate .ai-p4,
+.ai-sun.animate .ai-p5, .ai-sun.animate .ai-p6, .ai-sun.animate .ai-p7, .ai-sun.animate .ai-p8 { opacity: 0; animation: ai-fade 0.3s ease forwards; }
+.ai-sun.animate .ai-p1 { animation-delay: 0.10s; }
+.ai-sun.animate .ai-p2 { animation-delay: 0.19s; }
+.ai-sun.animate .ai-p3 { animation-delay: 0.28s; }
+.ai-sun.animate .ai-p4 { animation-delay: 0.37s; }
+.ai-sun.animate .ai-p5 { animation-delay: 0.46s; }
+.ai-sun.animate .ai-p6 { animation-delay: 0.55s; }
+.ai-sun.animate .ai-p7 { animation-delay: 0.64s; }
+.ai-sun.animate .ai-p8 { animation-delay: 0.73s; }
+
+/* ---- Trash2: lid lifts, can drops -------------------------------------- */
+.ai-trash-2 .ai-p0, .ai-trash-2 .ai-p2 { transition: transform 0.2s ease-in; }
+.ai-trash-2.animate .ai-p0, .ai-trash-2.animate .ai-p2 { transform: translateY(-1px); }
+.ai-trash-2 .ai-p1, .ai-trash-2 .ai-p3, .ai-trash-2 .ai-p4 { transition: transform 0.2s ease-in; }
+.ai-trash-2.animate .ai-p1, .ai-trash-2.animate .ai-p3, .ai-trash-2.animate .ai-p4 { transform: translateY(1px); }
+
+/* ---- Upload: the arrow lifts off the tray ------------------------------ */
+.ai-upload .ai-p1, .ai-upload .ai-p2 { transition: transform 0.3s var(--ease-playful); }
+.ai-upload.animate .ai-p1, .ai-upload.animate .ai-p2 { transform: translateY(-2px); }
+
+/* ---- Pin: a slight tilt on hover (not a shake — a wiggle reads like an error
+   state, e.g. a rejected password field). ------------------------------------ */
+.ai-pin { transition: transform 0.3s var(--ease-playful); transform-origin: center; }
+.ai-pin.animate { transform: rotate(-16deg); }
+
+/* ---- Lock family: the shackle lifts ------------------------------------ */
+.ai-lock .ai-p1, .ai-lock-open .ai-p1 { transition: transform 0.25s ease-in-out; }
+.ai-lock.animate .ai-p1, .ai-lock-open.animate .ai-p1 { transform: translateY(-1.5px); }
+
+/* ---- Eye: the pupil widens (a blink would read as "closed", the opposite of
+   what the button does). transform-box defaults to view-box, so `center` is the
+   viewBox centre — which is exactly where the pupil already sits. ----------- */
+.ai-eye .ai-p1 { transition: transform 0.25s var(--ease-playful); transform-origin: center; }
+.ai-eye.animate .ai-p1 { transform: scale(1.28); }
+
+/* ======================================================================== */
+/* Second wave — the remaining glyphs, authored in the same idiom.          */
+/* ======================================================================== */
+@keyframes ai-hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes ai-draw-20 { 0% { opacity: 0; stroke-dashoffset: 20; } 15% { opacity: 1; stroke-dashoffset: 20; } 100% { opacity: 1; stroke-dashoffset: 0; } }
+@keyframes ai-slide-x { 0% { transform: translateX(-4px); opacity: 0.2; } 100% { transform: translateX(0); opacity: 1; } }
+
+/* ArchiveRestore: lid lifts and the restore arrow rises with it. */
+.ai-archive-restore .ai-p0, .ai-archive-restore .ai-p3, .ai-archive-restore .ai-p4 { transition: transform 0.2s ease-in; }
+.ai-archive-restore.animate .ai-p0, .ai-archive-restore.animate .ai-p3, .ai-archive-restore.animate .ai-p4 { transform: translateY(-2px); }
+
+/* Ban: the slash strikes through. */
+.ai-ban .ai-p1 { stroke-dasharray: 20; stroke-dashoffset: 0; transition: stroke-dashoffset 0.15s ease-out; }
+.ai-ban.animate .ai-p1 { opacity: 0; animation: ai-draw-20 0.35s ease-out forwards; }
+
+/* Code: the angle brackets spread apart. */
+.ai-code .ai-p0, .ai-code .ai-p1 { transition: transform 0.2s ease-in; }
+.ai-code.animate .ai-p0 { transform: translateX(2px); }
+.ai-code.animate .ai-p1 { transform: translateX(-2px); }
+
+/* CornerDownLeft: the return arrow steps left. */
+.ai-corner-down-left .ai-p0 { transition: transform 0.2s ease-in-out; }
+.ai-corner-down-left.animate .ai-p0 { transform: translateX(-2px); }
+
+/* Folder: a gentle lift. */
+.ai-folder { transition: transform 0.2s ease-in; transform-origin: center; }
+.ai-folder.animate { transform: scale(1.08); }
+
+/* FolderInput: the contents slide into the folder. */
+.ai-folder-input .ai-p1, .ai-folder-input .ai-p2 { transition: transform 0.25s ease-in-out; }
+.ai-folder-input.animate .ai-p1, .ai-folder-input.animate .ai-p2 { transform: translateX(2px); }
+
+/* Hash: the uprights spread. */
+.ai-hash .ai-p2, .ai-hash .ai-p3 { transition: transform 0.2s ease-in; }
+.ai-hash.animate .ai-p2 { transform: translateX(-1.5px); }
+.ai-hash.animate .ai-p3 { transform: translateX(1.5px); }
+
+/* Headings: the numeral hops. */
+.ai-heading-1.animate .ai-p3,
+.ai-heading-2.animate .ai-p3,
+.ai-heading-3.animate .ai-p3, .ai-heading-3.animate .ai-p4 { animation: ai-hop 0.45s ease-in-out; }
+
+/* Home: the house hops. */
+.ai-home.animate { animation: ai-hop 0.45s ease-in-out; }
+
+/* Italic: the stroke leans further. */
+.ai-italic { transition: transform 0.3s ease; transform-origin: center; }
+.ai-italic.animate { transform: skewX(-8deg); }
+
+/* Link2: the two links pull apart. */
+.ai-link-2 .ai-p0, .ai-link-2 .ai-p1 { transition: transform 0.2s ease-in; }
+.ai-link-2.animate .ai-p0 { transform: translateX(-1.5px); }
+.ai-link-2.animate .ai-p1 { transform: translateX(1.5px); }
+
+/* List: the bullets pop in, top to bottom. */
+.ai-list .ai-p0, .ai-list .ai-p1, .ai-list .ai-p2 { transition: opacity 0.2s ease; }
+.ai-list.animate .ai-p0, .ai-list.animate .ai-p1, .ai-list.animate .ai-p2 { opacity: 0; animation: ai-fade 0.3s ease forwards; }
+.ai-list.animate .ai-p2 { animation-delay: 0s; }
+.ai-list.animate .ai-p0 { animation-delay: 0.1s; }
+.ai-list.animate .ai-p1 { animation-delay: 0.2s; }
+
+/* ListOrdered: the rows slide in from the left, top to bottom. */
+.ai-list-ordered.animate .ai-p2 { animation: ai-slide-x 0.3s ease 0s backwards; }
+.ai-list-ordered.animate .ai-p0 { animation: ai-slide-x 0.3s ease 0.08s backwards; }
+.ai-list-ordered.animate .ai-p1 { animation: ai-slide-x 0.3s ease 0.16s backwards; }
+
+/* Menu: the outer bars spread from the middle. */
+.ai-menu .ai-p1, .ai-menu .ai-p2 { transition: transform 0.2s ease-in; }
+.ai-menu.animate .ai-p1 { transform: translateY(-1.5px); }
+.ai-menu.animate .ai-p2 { transform: translateY(1.5px); }
+
+/* MoreVertical: the dots ripple. */
+.ai-more-vertical .ai-p0, .ai-more-vertical .ai-p1, .ai-more-vertical .ai-p2 { transition: opacity 0.2s ease; }
+.ai-more-vertical.animate .ai-p0, .ai-more-vertical.animate .ai-p1, .ai-more-vertical.animate .ai-p2 { opacity: 0; animation: ai-fade 0.3s ease forwards; }
+.ai-more-vertical.animate .ai-p1 { animation-delay: 0s; }
+.ai-more-vertical.animate .ai-p0 { animation-delay: 0.1s; }
+.ai-more-vertical.animate .ai-p2 { animation-delay: 0.2s; }
+
+/* Quote: the marks hop. */
+.ai-quote.animate { animation: ai-hop 0.45s ease-in-out; }
+
+/* Undo2 / Redo2: the arrow head pulls along the direction it points, so the hover
+   previews the motion the button performs — mirrored, like the glyphs. */
+.ai-undo-2 .ai-p0, .ai-redo-2 .ai-p0 { transition: transform 0.25s var(--ease-playful); }
+.ai-undo-2.animate .ai-p0 { transform: translateX(-2.5px); }
+.ai-redo-2.animate .ai-p0 { transform: translateX(2.5px); }
+
+/* Strikethrough: the rule sweeps across, the way the mark itself lands on a word.
+   Drawn (not faded) so the hover reads as an action being performed, not a state. */
+.ai-strikethrough .ai-p2 { stroke-dasharray: 16; stroke-dashoffset: 0; transition: stroke-dashoffset 0.15s ease-out; }
+.ai-strikethrough.animate .ai-p2 { animation: ai-draw-16 0.35s ease-out backwards; }
+@keyframes ai-draw-16 { 0% { stroke-dashoffset: 16; } 100% { stroke-dashoffset: 0; } }
+
+/* Highlighter: the pen tilts into the page, as if being put to the paper. The
+   whole glyph rotates about its lower-left, which is where the nib sits. */
+.ai-highlighter { transition: transform 0.25s var(--ease-follow); transform-origin: 25% 80%; }
+.ai-highlighter.animate { transform: rotate(-12deg); }
+
+/* SquareCode: the brackets spread inside their frame — the same gesture as the
+   bare Code glyph, so the inline and block code actions animate as a family. */
+.ai-square-code .ai-p0, .ai-square-code .ai-p1 { transition: transform 0.2s ease-in; }
+.ai-square-code.animate .ai-p0 { transform: translateX(-1.5px); }
+.ai-square-code.animate .ai-p1 { transform: translateX(1.5px); }
+
+/* Minus (horizontal rule): the line draws itself left to right, previewing the
+   divider that the action drops into the document. */
+.ai-minus .ai-p0 { stroke-dasharray: 14; stroke-dashoffset: 0; transition: stroke-dashoffset 0.15s ease-out; }
+.ai-minus.animate .ai-p0 { animation: ai-draw-14 0.35s ease-out backwards; }
+
+/* Image: the mountain and sun lift out of the frame, the picture stepping forward
+   out of its border. */
+.ai-image .ai-p1, .ai-image .ai-p2 { transition: transform 0.25s var(--ease-follow); }
+.ai-image.animate .ai-p1 { transform: translate(-1px, -1px); }
+.ai-image.animate .ai-p2 { transform: translate(1px, -1.5px); }
+
+/* ---- App window / hard drive: the two panes of the onboarding's architecture
+   diagram. Both animations are the same idea — a short flicker on the parts that
+   read as "activity" — because these two icons are only ever animated together,
+   when a request lands on one end of the wire. The hard drive's two dots are its
+   activity lights and the window's two ticks are its title-bar controls, so in
+   both cases the flickering part is the part a person already reads as alive.
+   Rest state is untouched: the flicker dips and returns rather than starting
+   dimmed, so an un-animated icon looks like every other icon in the app. ------ */
+@keyframes ai-led { 0%, 100% { opacity: 1; } 45% { opacity: 0.2; } }
+.ai-hard-drive.animate .ai-p3 { animation: ai-led 0.52s ease-in-out; }
+.ai-hard-drive.animate .ai-p0 { animation: ai-led 0.52s ease-in-out 0.13s; }
+.ai-app-window.animate .ai-p3 { animation: ai-led 0.52s ease-in-out; }
+.ai-app-window.animate .ai-p1 { animation: ai-led 0.52s ease-in-out 0.13s; }

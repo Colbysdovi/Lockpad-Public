@@ -1,0 +1,2293 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Lockpad's stylesheet.
+
+   Tailwind handles the day-to-day layout and spacing inline in the components.
+   This file holds the three things Tailwind classes cannot express well:
+
+     1. THE DESIGN TOKENS (@layer base, below). Every colour, radius, shadow and
+        surface treatment as CSS custom properties, defined once for light and
+        redefined for dark. Nothing in the app hard-codes a colour — components
+        reference tokens, so the whole theme changes by swapping one class on
+        <html>. This is also where the accessibility contrast decisions live.
+
+     2. CONTENT STYLING for markup we do not author: the ProseMirror editor's
+        output (headings, lists, checklists, code blocks and their syntax
+        highlighting), the card previews that reuse the same rules at a smaller
+        scale, and the print stylesheet that turns a note into a PDF.
+
+     3. KEYFRAMES for the note micro-interactions — the delete strike, the archive
+        recede, the accent draw, the card arrival, the lock blur, and each of their
+        reverse plays for Undo. These live in CSS rather than in Framer Motion
+        because an <AnimatePresence initial={false}> higher in the tree suppresses
+        descendant mount animations; a CSS animation is not subject to that. Their
+        DURATIONS come from lib/motion.ts via inline custom properties, so the
+        timing has one source of truth even though the animation is defined here.
+
+   Section markers below start with a horizontal rule so they can be jumped
+   between. Anything with a `prefers-reduced-motion` block honours the OS setting.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Lockpad "Warm Terracotta" palette (prd-color-palette-terracotta.md).
+   A warm cream-and-terracotta system: terracotta primary (#A34B3C), warm-cream
+   canvas, espresso text; status colours retuned into the same warm family (olive
+   success, ochre/gold warning) with a deliberately distinct red destructive so a
+   delete never reads as a primary action. Dark mode is an espresso-based warm
+   treatment, not a cool inversion. Hues derived from fashion-week reference
+   swatches; a few values were nudged from the PRD's starting hexes to meet WCAG
+   AA (light --muted-foreground, and dark --primary/--ring/--destructive) — the PRD
+   flagged these for a contrast pass. System font stack is kept (no CDN fonts) to
+   preserve the zero-outbound-request privacy guarantee. */
+@layer base {
+  :root {
+    --radius: 0.75rem;
+
+    /* ── Motion vocabulary, by purpose ────────────────────────────────────────
+       The same four-way grouping the TS side uses (lib/motion.ts is the source of
+       truth and carries the full reasoning). Mirrored here as custom properties so
+       a CSS keyframe and a Framer transition can never describe "the same" motion
+       with two different curves — which is exactly how this file ended up with
+       three undocumented easings.
+
+         --ease-follow   something travelling or reshaping; the eye tracks it. Default.
+         --ease-end      destruction. Delete only.
+         --ease-playful  the animated-icon layer, and nowhere else. Overshoots.
+
+       Transitions at or below ~160ms (hover tints, focus rings, colour swaps) stay
+       on plain `ease` on purpose: below that threshold the curve is not perceptible
+       and picking one is false precision. */
+    --ease-follow: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-end: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-playful: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    /* END mirrored, for delete's undo — see the undo keyframes at the foot of this file. */
+    --ease-end-reversed: cubic-bezier(0.64, 0, 0.78, 0);
+
+    /* Elevated-surface system (PRD: Surfaces, Depth & Elevation). One set of
+       tokens — radius, material tint, blur, border, shadow — consumed by every
+       floating surface (note panel, composer bar, future modals) via the shared
+       `.surface-elevated` class, so they never drift. Cards reuse the radius. */
+    --radius-surface: 1rem;      /* 16px — panel, composer, cards */
+    --surface-tint: color-mix(in srgb, var(--card) 90%, transparent);
+    /* The "frosted" (more translucent) tint of the note-detail header — shared by
+       the composer at rest so the two frost the same amount and stay linked: change
+       this and both move together. */
+    --surface-tint-frost: color-mix(in srgb, var(--card) 50%, transparent);
+    --surface-border: color-mix(in srgb, var(--foreground) 8%, transparent);
+    /* A thin translucent-white top edge (macOS-style window highlight) that catches
+       the light and lifts elevated surfaces off the now-textured canvas. Applied via
+       .raised-top as a 1px inset highlight just below the top border. */
+    --surface-highlight: color-mix(in srgb, #ffffff 70%, transparent);
+    --surface-blur: 18px;
+    /* Warm espresso shadow tint (#3B2F27) as an "R G B" triplet, shared by the
+       Tailwind shadow-* scale (tailwind.config.js) and the custom shadows below,
+       so nothing casts an impersonal cold/black shadow. */
+    --shadow-color: 59 47 39;
+    --elevation-shadow: 0 4px 16px -8px rgb(var(--shadow-color) / 0.22),
+      0 18px 50px -12px rgb(var(--shadow-color) / 0.28);
+
+    /* Type scale (PRD 4). One documented set of size / weight / line-height pairs,
+       consumed via the `.type-*` classes below — not re-picked per component:
+         title   28/700  — note & document titles (the biggest thing on screen)
+         section 22/600  — page section headers ("All notes", "Archive")
+         card    16/600  — note card titles
+         body    16/400  — editor body, at a comfortable 1.7 line-height
+         meta    12/400  — secondary metadata (timestamps, status), muted */
+    --type-title-size: 1.75rem;    --type-title-weight: 700;   --type-title-leading: 1.2;
+    --type-section-size: 1.375rem; --type-section-weight: 600; --type-section-leading: 1.25;
+    --type-card-size: 1.375rem;    --type-card-weight: 700;    --type-card-leading: 1.3;
+    --type-body-size: 1rem;        --type-body-weight: 400;    --type-body-leading: 1.7;
+    --type-meta-size: 0.75rem;     --type-meta-weight: 400;    --type-meta-leading: 1.45;
+
+    /* Titles use a self-hosted serif (Newsreader). The fallbacks are system
+       serifs (not sans) so the hierarchy still reads as "serif title" during
+       the brief font swap or if the woff2 is unavailable. */
+    --font-serif: "Newsreader Variable", "Iowan Old Style", Charter, Georgia,
+      "Times New Roman", serif;
+
+    --canvas: #F2EAE0;            /* warm cream page canvas */
+    --background: #FBF6F0;        /* warm off-white panel/card background */
+    --foreground: #3B2F27;        /* espresso text */
+    --card: #FBF6F0;
+    --card-foreground: #3B2F27;
+
+    /* The image resize grip. Deliberately its OWN colour rather than --card: the chip
+       sits on top of a photograph, so it has to stay solid and light whatever the
+       theme and whatever the picture underneath happens to be. A chip that borrowed
+       the surface colour would turn dark in dark mode and disappear into any dark
+       photo. */
+    --image-grip: #FBF6F0;         /* solid warm off-white chip */
+    --image-grip-border: #C9B7A1;  /* stronger than --border so it survives on a photo */
+    --image-grip-fg: #6B5A4A;      /* the glyph inside it */
+    --primary: #A34B3C;           /* terracotta — principal actions, links, focus */
+    --primary-foreground: #FFFFFF;
+    --secondary: #EFE3D5;         /* warm beige surface/hover */
+    --secondary-foreground: #6B5B4C;
+    --muted: #F0E6DA;
+    --muted-foreground: #736251;  /* warm taupe — darkened from PRD #8A7A6C for AA */
+    --accent: #EFD9C7;            /* soft terracotta tint (hover) */
+    --accent-foreground: #7A3B26;
+    --success: #6B8F42;           /* warm olive (same reference swatch set) */
+    --success-foreground: #FFFFFF;
+    /* Warning — a real orange, retuned from the original ochre/gold #A98A4C.
+       Ochre was indistinguishable from the palette's own warm furniture: on a cream
+       card, next to a beige --border and a --secondary that is literally called
+       "warm beige surface", it read as another surface rather than as a signal. A
+       warning colour that blends into the page is not a warning colour.
+       Hue ~30° against the terracotta --primary's ~9°, and nearly twice its
+       saturation, so it cannot be mistaken for "another terracotta" — the same trap
+       --destructive was moved out of. White-fg 4.9:1; against --card 4.6:1, so it
+       carries text as well as icons. */
+    --warning: #AC5C0C;
+    --warning-foreground: #FFFFFF;
+    --destructive: #E11D48;       /* vivid rose-red (hue ~350°) — separated from the muted terracotta primary (~9°) by BOTH hue and much higher brightness/saturation, so danger no longer reads as "another terracotta"; white-fg 4.7:1 */
+    --destructive-foreground: #FFFFFF;
+    --border: #E0D2C2;            /* warm beige-grey */
+    --input: #D9C7B2;
+    --ring: #A34B3C;
+
+    /* Theme-relative interaction scrim (PRD 6): a neutral translucent overlay —
+       dark-on-light here, light-on-dark in .dark — used for every icon-button
+       hover and every small chip/badge that can sit on a coloured note, so the
+       affordance stays visible on all 10 note colours AND the plain surface,
+       instead of a fixed brand tint that vanishes on some colours. */
+    --scrim: rgba(59, 47, 39, 0.08);        /* 8% of --foreground (warm espresso) */
+    --scrim-strong: rgba(59, 47, 39, 0.14); /* 14% — pressed/active */
+
+    /* Modal backdrop (search, lock/unlock, import dialogs, mobile sheet/drawer):
+       a deep warm-espresso dim rather than flat black, so it reads as part of the
+       palette. Based on the dark-canvas espresso (#241C17). */
+    --backdrop: rgba(36, 28, 23, 0.55);
+
+    /* Icon-button tooltips: a dark warm-espresso chip with cream text in BOTH
+       themes, so tooltips read as one consistent floating label everywhere. */
+    --tooltip: #3B2F27;               /* espresso (= light --foreground) */
+    --tooltip-foreground: #FBF6F0;    /* cream */
+
+    /* There is no note-colour palette here. Twenty --note-<key>-bg/-border pairs used
+       to sit at this spot, one set per theme, for a per-note swatch picker. A note's
+       accent is DERIVED FROM ITS FOLDER now (lib/folderColor.ts) and folders carry
+       their own arbitrary hex, so not one of those forty values was ever read. See
+       lib/noteColors.ts for what is left of that design. */
+
+    /* Highlighter washes — light theme. Deliberately TRANSLUCENT rather than solid:
+       a highlight sits behind live text on a surface that is itself tinted (a
+       coloured note's accent, the card, the print sheet), and an opaque swatch
+       would show its own edges against all three. Alpha lets it read as ink soaking
+       into the page. Keys mirror lib/highlightColors.ts; the dark values below are
+       tuned separately, which is why a highlight is stored by NAME, not by hex. */
+    --hl-amber: rgba(206, 158, 74, 0.42);
+    --hl-green: rgba(90, 176, 126, 0.38);
+    --hl-blue: rgba(96, 152, 214, 0.36);
+    --hl-pink: rgba(219, 116, 168, 0.34);
+    --hl-purple: rgba(160, 122, 206, 0.32);
+  }
+
+  /* Dark variant — warm espresso surfaces (not a cool inversion). */
+  .dark {
+    --canvas: #241C17;            /* deep espresso canvas */
+    --background: #2C221C;        /* panel/card background */
+    --foreground: #F0E6DA;        /* warm cream text */
+    --card: #322820;
+    --card-foreground: #F0E6DA;
+
+    /* Still a LIGHT chip in dark mode — see the note in the light theme above. Toned
+       down from the light theme's off-white so it reads as a control on a dark page
+       rather than as a headlight. */
+    --image-grip: #EDE1D1;
+    --image-grip-border: #B7A48D;
+    --image-grip-fg: #4A3B30;
+    --primary: #D17C5F;           /* lightened terracotta — nudged from PRD #C2694F for AA */
+    --primary-foreground: #241C17;
+    --secondary: #3A2E25;
+    --secondary-foreground: #D8C7B8;
+    --muted: #362B23;
+    --muted-foreground: #A6927F;
+    --accent: #4A2E22;            /* deep terracotta tint */
+    --accent-foreground: #E8B49A;
+    --success: #8FB86A;           /* lightened warm olive */
+    --success-foreground: #1C2410;
+    --warning: #EA9A3E;           /* lightened orange — on --card 6.9:1, dark-fg 7.3:1 */
+    --warning-foreground: #241C17;
+    --destructive: #F06A86;       /* bright coral-rose (hue ~347°) — cooled away from the terracotta primary (~15°); dark-fg 5.7:1, text-on-card 4.9:1 */
+    --destructive-foreground: #241C17;
+    --border: #3E322A;
+    --input: #453830;
+    --ring: #D17C5F;
+
+    /* Inverted on dark: light-on-dark scrim (PRD 6), warmed to --foreground (cream). */
+    --scrim: rgba(240, 230, 218, 0.12);
+    --scrim-strong: rgba(240, 230, 218, 0.20);
+
+    /* Backdrop goes deeper/near-black-warm on dark so modals still separate from
+       the already-dark canvas. */
+    --backdrop: rgba(12, 8, 5, 0.66);
+
+    /* Tooltip stays a dark chip on dark too — a touch deeper than the canvas so it
+       still separates as a floating label. Cream text unchanged. */
+    --tooltip: #17110D;
+    --tooltip-foreground: #F0E6DA;
+
+    /* Elevated surfaces on dark: slightly more translucent tint over the deep
+       canvas, and a deeper shadow so the panel still separates from the list. */
+    --surface-tint: color-mix(in srgb, var(--card) 84%, transparent);
+    --surface-border: color-mix(in srgb, #ffffff 9%, transparent);
+    /* Subtler on dark: a faint white top edge (macOS dark windows barely highlight). */
+    --surface-highlight: color-mix(in srgb, #ffffff 12%, transparent);
+    /* Deep warm near-black (#0F0A07) so shadows still read on the dark canvas
+       while keeping the brown cast rather than a neutral black. */
+    --shadow-color: 15 10 7;
+    --elevation-shadow: 0 4px 16px -8px rgb(var(--shadow-color) / 0.5),
+      0 20px 60px -12px rgb(var(--shadow-color) / 0.62);
+
+
+    /* Highlighter washes — dark theme. Same hues, pushed DARKER and slightly more
+       opaque: on the espresso surface a pale wash would glow like a light box and
+       drown the cream text sitting on it. The point of a highlight is that the
+       words stay the most legible thing in the line. */
+    --hl-amber: rgba(168, 122, 40, 0.52);
+    --hl-green: rgba(58, 126, 88, 0.52);
+    --hl-blue: rgba(56, 104, 162, 0.52);
+    --hl-pink: rgba(160, 68, 116, 0.5);
+    --hl-purple: rgba(112, 78, 158, 0.5);
+  }
+
+  * {
+    border-color: var(--border);
+  }
+
+  body {
+    /* Light-grey canvas behind white surfaces, as in Sou. */
+    background-color: var(--canvas);
+    /* TEST: a leather-ish texture over the canvas, to break up the very flat, soft
+       look. Two self-hosted grayscale fractal-noise SVG tiles (data URIs — no asset,
+       resolution-independent): a pore GRAIN (overlay) over a low-frequency MOTTLE
+       (soft-light) — the hide's unevenness. LIGHT THEME ONLY (removed on .dark below).
+       COLOUR-NEUTRAL BY CONSTRUCTION: the filters carry `color-interpolation-filters
+       ='sRGB'`, so feTurbulence runs in the SAME sRGB space CSS blending composites
+       in. There its output mean is 127.5 ≈ mid-grey (128) with no clamping, so the
+       blend is mean-neutral — it lightens and darkens equally, adding TEXTURE ONLY and
+       leaving the --canvas colour + hue unchanged. (Without the sRGB hint, filters
+       default to linearRGB, whose mean encodes to sRGB ~187 and would lighten the
+       canvas — the bug this avoids.) STRENGTH is the tiles' constant alpha (feFuncA
+       slope 0 / intercept 0.25 = 25%); the mid-grey mean keeps it neutral at any alpha.
+       Tune: `intercept` (0–1) for strength, `baseFrequency` (higher = finer). Drop
+       the mottle layer for plain film grain. */
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0' intercept='0.25'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='440' height='440'%3E%3Cfilter id='m' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.14' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0' intercept='0.25'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E");
+    background-repeat: repeat, repeat;
+    background-blend-mode: overlay, soft-light;
+    color: var(--foreground);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+      Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    margin: 0;
+  }
+  /* Dark theme: no canvas texture — the espresso canvas keeps its plain finish. */
+  .dark body {
+    background-image: none;
+  }
+  /* Respect users who ask for less busy visuals: drop the grain entirely. */
+  @media (prefers-reduced-transparency: reduce) {
+    body {
+      background-image: none;
+    }
+  }
+}
+
+/* Hide the scrollbar on horizontally-scrolling strips (e.g. the mobile editor
+   toolbar) while keeping them scrollable. */
+/* ─── Utilities and typography ────────────────────────────────────────────────
+   Small helpers that are awkward as Tailwind classes, plus the named type scale
+   (.type-title, .type-section, .type-card-title, .type-body, .type-meta). Using
+   named roles rather than raw sizes means the type hierarchy can be retuned in one
+   place instead of hunting down every `text-lg` in the codebase. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Custom, discreet scrollbars app-wide. Neutral palette colour (--input) with a
+   transparent track and inset (border-boxed) thumb, so it reads as a thin bar
+   with enough contrast to see but no heavy native chrome. The `.no-scrollbar`
+   rules above are more specific, so opted-out strips still hide theirs. */
+* {
+  scrollbar-width: thin;                      /* Firefox */
+  scrollbar-color: var(--input) transparent;  /* thumb, track */
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--input);
+  border-radius: 8px;
+  /* Transparent border + padding-box clip = a slimmer ~6px visible thumb. */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
+}
+
+/* Typography scale classes (PRD 4) — the single vocabulary for text hierarchy.
+   Components apply these instead of ad hoc text-size/weight utilities. */
+.type-title {
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  font-size: var(--type-title-size);
+  font-weight: var(--type-title-weight);
+  line-height: var(--type-title-leading);
+  letter-spacing: -0.01em;
+}
+.type-section {
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  font-size: var(--type-section-size);
+  font-weight: var(--type-section-weight);
+  line-height: var(--type-section-leading);
+  letter-spacing: -0.01em;
+}
+.type-card-title {
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  font-size: var(--type-card-size);
+  font-weight: var(--type-card-weight);
+  line-height: var(--type-card-leading);
+}
+.type-body {
+  font-size: var(--type-body-size);
+  font-weight: var(--type-body-weight);
+  line-height: var(--type-body-leading);
+}
+.type-meta {
+  font-size: var(--type-meta-size);
+  font-weight: var(--type-meta-weight);
+  line-height: var(--type-meta-leading);
+  color: var(--muted-foreground);
+}
+
+/* Full-height app shell. `100vh` on iOS Safari includes the space behind the
+   browser toolbar, which pushes the bottom note bar under the chrome; `100dvh`
+   (dynamic viewport) tracks the actually-visible area. vh is kept as a fallback
+   for older engines. */
+.app-shell {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* iOS zooms the whole page when a focused input's font is under 16px. Keep form
+   controls at 16px on phones so focusing the note bar / search never zooms.
+   `!important` is needed to beat Tailwind's `.text-sm`/`.text-xs` utilities,
+   which are single-class selectors and otherwise win the cascade. */
+@media (max-width: 767px) {
+  /* `.type-title` is exempt: the note title is well over 16px, so it never
+     triggers zoom and should keep its large size on phones too. */
+  input:not([type="checkbox"]):not([type="radio"]):not(.type-title),
+  textarea:not(.type-title),
+  select {
+    font-size: 16px !important;
+  }
+  /* The editor body (contenteditable) too. */
+  /* ─── The editor's own content ────────────────────────────────────────────────
+   ProseMirror renders the note document as plain HTML, so this is where a note
+   actually gets its look: paragraph rhythm, heading sizes, lists, checklists,
+   blockquotes, code blocks and their syntax highlighting.
+
+   `.note-preview` is the SAME styling at card scale — the previews on list cards
+   are real ProseMirror documents, not text, which is why a checklist looks like a
+   checklist on the card. Keeping both here is deliberate: they must not drift, or
+   a note would change shape when opened. */
+.ProseMirror {
+    font-size: 16px;
+  }
+}
+
+/* Minimal TipTap editor styling. Body content uses the type scale's comfortable
+   line-height (PRD 4) so longer notes read with room to breathe. */
+.ProseMirror {
+  outline: none;
+  min-height: 60vh;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-leading);
+}
+.ProseMirror p {
+  margin: 0.35em 0;
+}
+/* Roomier paragraph blocks in the note EDITOR (not card previews): extra vertical
+   padding gives each block a taller box, so the drag handle + "+" read as centred on
+   the block's height rather than pinned to the first character. */
+.note-view .ProseMirror p {
+  margin: 0.1em 0;
+  padding: 0.4rem 0;
+}
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--muted-foreground);
+  pointer-events: none;
+  height: 0;
+}
+/* Headings inside a note echo the note title's serif face (PRD 4) so the whole
+   detail page reads as one typographic family. */
+.ProseMirror :is(h1, h2, h3) {
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  letter-spacing: -0.01em;
+}
+/* Card preview: the note's own content rendered read-only, reusing the exact
+   `.ProseMirror` typography above so a card is a faithful miniature of the detail
+   page. Only editor-specific *layout* is undone — no min-height, no interaction —
+   and the block is clipped to a few lines (soft-faded) so cards stay uniform. */
+/* A note preview inside an ONBOARDING pane, capped shorter than on a real card.
+   A list card gives its preview 8.5rem, and with a title, the chips and the card's
+   own padding that makes the tallest cards about 300px — which is the entire height
+   of the tour's preview frame, so the card being shown got cut off at both ends and
+   the step meant to say "these are your notes" showed a note with no top and no
+   bottom. Capping the preview is the one lever that shortens the card without
+   touching anything structural: the title, the folder and tag chips, the accent
+   stripe and the card's proportions are all still the product's. The preview was
+   already a bounded, mask-faded miniature rather than the note itself, so this
+   tightens a bound that exists rather than inventing one. */
+/* ─── The padlock in the onboarding's server badge ────────────────────────────
+   Exaggerated on purpose, because the app's own lock animation is calibrated for a
+   different size. `.ai-lock.animate` moves the shackle 1.5px, which is exactly right
+   on a 20px glyph inside a toolbar button and completely invisible on a 14px one
+   inside a 24px pill seen for under three seconds.
+
+   So this drives the same part of the same glyph, harder: the shackle travels 3.5px
+   (a quarter of the icon), the whole padlock gives a small squash as the shackle
+   seats, and it runs as a REPEATING keyframe rather than the icon system's one-shot
+   transition — a viewer glancing at the pane halfway through the dwell still catches
+   it closing rather than finding a closed padlock and no story.
+
+   Driven entirely from CSS, so the badge does not pass `animate` at all; the icon
+   system's own hover transition would otherwise fight these keyframes for the same
+   property. */
+@keyframes preview-lock-shut {
+  0%, 26%  { transform: translateY(-3.5px); }
+  44%      { transform: translateY(0); }
+  52%      { transform: translateY(-0.7px); }
+  60%, 100% { transform: translateY(0); }
+}
+@keyframes preview-lock-seat {
+  0%, 40%  { transform: scale(1); }
+  47%      { transform: scale(0.88); }
+  58%      { transform: scale(1.04); }
+  70%, 100% { transform: scale(1); }
+}
+.preview-lock-badge .ai-lock .ai-p1 {
+  transition: none;
+  animation: preview-lock-shut 1.6s var(--ease-follow) infinite;
+}
+.preview-lock-badge .ai-lock {
+  transform-origin: center;
+  animation: preview-lock-seat 1.6s var(--ease-follow) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .preview-lock-badge .ai-lock,
+  .preview-lock-badge .ai-lock .ai-p1 { animation: none; }
+}
+
+.preview-pane .note-preview.ProseMirror {
+  max-height: 5.5rem;
+}
+
+.note-preview.ProseMirror {
+  min-height: 0;
+  max-height: 8.5rem;
+  overflow: hidden;
+  cursor: pointer;
+  /* The preview is a decorative, aria-hidden miniature: keep it fully inert so a
+     rendered smart-link card (an <a href>) can't swallow the click that opens the
+     note — the card wrapper owns that click. */
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent);
+  mask-image: linear-gradient(to bottom, #000 72%, transparent);
+}
+/* Static smart-link card inside a preview: no live NodeView wrapper here, so give it
+   the small vertical rhythm the `.smart-link` wrapper provides in the editor, and trim
+   it to a tighter, glanceable size that suits the miniature. */
+.note-preview .smart-link-card { margin: 0.4rem 0; padding: 0.4rem 0.5rem; gap: 0.6rem; }
+.note-preview .smart-link-icon { width: 1.85rem; height: 1.85rem; }
+.note-preview .smart-link-label { font-size: 0.85rem; }
+.note-preview .smart-link-url { font-size: 0.75rem; }
+.note-preview > :first-child { margin-top: 0; }
+/* A DIVIDER inside a preview. In the editor a rule is given a lot of air either
+   side, because there it is separating two long stretches of writing. Inside a
+   card that same 1.75em would spend most of the preview's ~8.5rem on empty space,
+   so the rule keeps its hairline but loses the room around it. */
+.note-preview.ProseMirror hr { margin: 0.5em 0; }
+/* A CODE BLOCK inside a preview. At editor scale a single code block fills the
+   whole card and pushes every line of prose out of view, so the surface, radius
+   and monospace face are kept (it still reads instantly as code) while padding,
+   type size and margin come down to card scale — the same treatment the static
+   smart-link card gets above. Syntax colours are editor-only: lowlight paints
+   them with ProseMirror decorations, which don't exist in this static render. */
+.note-preview.ProseMirror pre {
+  padding: 0.45rem 0.6rem;
+  margin: 0.35em 0;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  overflow: hidden;
+}
+/* Within a card the note *title* is the top of the hierarchy, so preview headings
+   are scaled down to sit below it — they keep their serif face + weight (still read
+   as headings) but never out-shout the card title (1.375rem). */
+.note-preview.ProseMirror :is(h1, h2, h3) { line-height: 1.3; margin: 0.3em 0; }
+.note-preview.ProseMirror h1 { font-size: 1.15rem; }
+.note-preview.ProseMirror h2 { font-size: 1.05rem; }
+.note-preview.ProseMirror h3 { font-size: 1rem; font-weight: 600; }
+
+.ProseMirror h1 { font-size: 1.875rem; font-weight: 700; margin: 0.67em 0; }
+.ProseMirror h2 { font-size: 1.5rem; font-weight: 700; margin: 0.75em 0; }
+.ProseMirror h3 { font-size: 1.25rem; font-weight: 600; margin: 0.83em 0; }
+.ProseMirror ul { list-style: disc; padding-left: 1.5rem; }
+.ProseMirror ol { list-style: decimal; padding-left: 1.5rem; }
+.ProseMirror blockquote { border-left: 3px solid var(--border); padding-left: 1rem; color: var(--muted-foreground); }
+/* Code blocks (PRD 8): a self-contained DARK surface in BOTH app themes (code
+   conventionally stays dark), with highlight.js token colours from lowlight
+   (bundled locally — no CDN). Radius/padding follow the app's spacing system. */
+.ProseMirror pre {
+  background: #0d1117;
+  color: #e6edf3;
+  border: 1px solid #1f2630;
+  border-radius: 0.75rem;
+  padding: 0.9rem 1.1rem;
+  margin: 0.6em 0;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+.ProseMirror pre code {
+  background: none;
+  color: inherit;
+  padding: 0;
+  font-size: inherit;
+}
+.ProseMirror code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+/* Inline code (not inside a pre): a subtle tinted chip, theme-aware. */
+.ProseMirror :not(pre) > code {
+  background: var(--muted);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+}
+/* highlight.js token palette (GitHub-dark-ish), scoped to editor code blocks. */
+/* highlight.js token colours, mapped onto the app's own palette rather than a
+   stock theme — a bright generic code theme would be the one place in the app
+   shouting in a different colour language. */
+.ProseMirror pre .hljs-comment,
+.ProseMirror pre .hljs-quote { color: #8b949e; font-style: italic; }
+.ProseMirror pre .hljs-keyword,
+.ProseMirror pre .hljs-selector-tag,
+.ProseMirror pre .hljs-literal,
+.ProseMirror pre .hljs-type,
+.ProseMirror pre .hljs-section,
+.ProseMirror pre .hljs-doctag { color: #ff7b72; }
+.ProseMirror pre .hljs-string,
+.ProseMirror pre .hljs-regexp,
+.ProseMirror pre .hljs-meta .hljs-string { color: #a5d6ff; }
+.ProseMirror pre .hljs-number,
+.ProseMirror pre .hljs-symbol,
+.ProseMirror pre .hljs-bullet { color: #79c0ff; }
+.ProseMirror pre .hljs-title,
+.ProseMirror pre .hljs-title.function_,
+.ProseMirror pre .hljs-name { color: #d2a8ff; }
+.ProseMirror pre .hljs-built_in,
+.ProseMirror pre .hljs-attr,
+.ProseMirror pre .hljs-attribute,
+.ProseMirror pre .hljs-variable,
+.ProseMirror pre .hljs-params { color: #ffa657; }
+.ProseMirror pre .hljs-tag,
+.ProseMirror pre .hljs-selector-class,
+.ProseMirror pre .hljs-selector-id { color: #7ee787; }
+.ProseMirror pre .hljs-emphasis { font-style: italic; }
+.ProseMirror pre .hljs-strong { font-weight: 600; }
+/* Links open on click (in a new tab — see Editor's Link config), so show the hand
+   cursor on hover even though the note itself is an editable (text-cursor) surface. */
+.ProseMirror a { color: var(--primary); text-decoration: underline; cursor: pointer; }
+/* Highlighter mark. The colour is carried on the node as a NAME (data-color) and
+   resolved to a theme-aware variable here — see components/highlight.ts for why the
+   value is not stored in the document. A `mark` with no data-color (pasted from
+   elsewhere, or written by an older build) falls back to the default wash rather
+   than rendering unstyled. The small negative inline padding lets the wash extend
+   just past the glyphs, the way a real highlighter overshoots a word. */
+.ProseMirror mark {
+  background: var(--hl-amber);
+  color: inherit;
+  border-radius: 0.15em;
+  padding: 0.05em 0.1em;
+  margin: 0 -0.1em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.ProseMirror mark[data-color="amber"]  { background: var(--hl-amber); }
+.ProseMirror mark[data-color="green"]  { background: var(--hl-green); }
+.ProseMirror mark[data-color="blue"]   { background: var(--hl-blue); }
+.ProseMirror mark[data-color="pink"]   { background: var(--hl-pink); }
+.ProseMirror mark[data-color="purple"] { background: var(--hl-purple); }
+
+/* Divider (horizontal rule). Rendered as a real hairline with generous air either
+   side — a divider that hugs its neighbours reads as a border on the block above
+   rather than as a break between two sections. Given a hair of extra height so it
+   remains a comfortable click target when selected and deleted. */
+.ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.75em 0;
+}
+.ProseMirror hr.ProseMirror-selectednode {
+  border-top-color: var(--primary);
+  outline: none;
+}
+
+/* ─── Images in a note ────────────────────────────────────────────────────────
+   A picture is laid out as a block of its own, capped at the writing column's width
+   and never taller than most of the viewport — a portrait phone photo would
+   otherwise push every word of the note off the screen and turn reading into
+   scrolling past a wall.
+
+   `height: auto` alongside the real width/height attributes is what gives the
+   browser the aspect ratio before the bytes land, so the page reserves the right
+   space instead of jolting downwards as each image loads. */
+.ProseMirror .note-image,
+.note-preview .note-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  /* A hairline stops a white-backed screenshot from bleeding into the cream page
+     with no edge at all. Inset, so it never adds to the layout size. */
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.ProseMirror .note-image {
+  max-height: 70vh;
+  /* Centred within the column: a narrow image adrift on the left reads as a mistake,
+     and this is the one block in a note that is not text. */
+  margin-inline: auto;
+  object-fit: contain;
+}
+/* The block wrapper (the NodeView) rather than the img, so the selection ring
+   surrounds the controls too. */
+.note-image-block.is-selected .note-image,
+.ProseMirror-selectednode > .note-image {
+  box-shadow: inset 0 0 0 1px var(--border), 0 0 0 2px var(--primary);
+}
+/* Card previews are miniatures: a photo there is a hint of the note's contents, not
+   the contents, so it is capped short enough that several blocks still fit.
+   Full-bleed to the card's text column — the same left and right edge as the title
+   and the prose above it, since the card's own padding is what sets that edge.
+   It used to size itself from its height cap instead (`width: auto`), which left a
+   portrait photo as a narrow slab against the card's left margin with dead space
+   beside it, reading as a broken image rather than a picture.
+
+   `object-fit: cover` is what makes the pairing safe. With a definite width and a
+   max-height, a tall image would otherwise be squashed to fit the cap; cover crops
+   it to the band instead, so proportions always survive. A short, wide image never
+   reaches the cap and simply sits at its own height, uncropped. */
+.note-preview .note-image {
+  max-height: 8rem;
+  width: 100%;
+  object-fit: cover;
+  margin: 0.35rem 0;
+}
+
+/* The description, written under the picture.
+   It is a caption first and an accessibility feature second — which is the point:
+   alt text that nobody can see is alt text nobody maintains. Centred under the image
+   and set small and quiet, so it reads as a label on the picture rather than as a
+   line of the note's prose. */
+.note-image-figure {
+  position: relative;
+  margin: 0 auto;
+  /* Default: the picture's own size, never wider than the column. `fit-content`
+     rather than 100% so a small image stays small instead of being stretched. */
+  width: fit-content;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+/* Once a size has been chosen, the figure's width is the instruction and the image
+   simply fills it — including past the 70vh guard, which exists to stop an unread
+   portrait photo eating the screen, not to overrule someone who has just said how
+   big they want it. */
+.note-image-figure.is-sized .note-image {
+  width: 100%;
+  max-height: none;
+}
+/* Mid-drag: no transitions on the picture itself — they would lag the pointer. (The
+   grip keeps its lit colour through the drag via .is-resizing below, even once the
+   cursor has left the picture.) */
+.note-image-figure.is-resizing .note-image {
+  transition: none;
+}
+
+/* The picture's own frame inside the figure. It exists so the resize grip has
+   something to anchor to that is the PICTURE, not the picture plus its caption. */
+.note-image-frame {
+  position: relative;
+  display: flex;
+  max-width: 100%;
+}
+.note-image-figure.is-sized .note-image-frame {
+  width: 100%;
+}
+
+/* The resize grip: a chip straddling the picture's bottom edge.
+   Drawn as a real control — solid light fill, hairline border, small shadow — rather
+   than as a bare rule. It sits ON the boundary it moves, so it is obvious what it
+   belongs to, and being fully opaque it stays legible over a photograph of any colour
+   (a translucent chip borrows whatever is behind it, which on a busy picture means
+   borrowing noise). The element around the chip is a generous hit target, because a
+   small pill is something you hunt for rather than grab. */
+.note-image-resize {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translate(-50%, 50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 28px;
+  cursor: ns-resize;
+  touch-action: none; /* the browser must not claim this gesture as a page scroll */
+  z-index: 1;
+  /* Hidden until the picture is hovered or selected, the same rule the delete button
+     follows: a note full of photographs should read as a page, not as a control panel.
+     Still fully opaque WHEN shown — this is a visibility gate, not a translucency. */
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+/* Revealed by hovering the picture, by selecting it, and — never leave the keyboard
+   behind — whenever focus is anywhere inside the block. :focus-within rather than
+   :focus-visible for the reveal, because :focus-visible is a browser heuristic about
+   input modality: a focused control that the heuristic decides not to mark would sit
+   there invisible and still take keystrokes. The ring below is the part that is
+   rightly modality-dependent. */
+.note-image-block:hover .note-image-resize,
+.note-image-block.is-selected .note-image-resize,
+.note-image-block:focus-within .note-image-resize,
+.note-image-figure.is-resizing .note-image-resize {
+  opacity: 1;
+}
+.note-image-resize:focus-visible {
+  outline: none;
+}
+
+/* The chip itself. Always fully opaque — see the note in NoteImageView.tsx for why
+   this control does not hide until hover. */
+.note-image-resize-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--image-grip);
+  border: 1px solid var(--image-grip-border);
+  color: var(--image-grip-fg);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease,
+    transform 0.15s ease;
+}
+.note-image-resize-bar svg {
+  display: block;
+}
+/* Hovered, focused, or mid-drag: the chip fills with the accent colour, so there is
+   no doubt which control is about to move — or is moving. */
+.note-image-resize:hover .note-image-resize-bar,
+.note-image-resize:focus-visible .note-image-resize-bar,
+.note-image-figure.is-resizing .note-image-resize-bar {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  transform: scale(1.08);
+}
+/* Keyboard focus also gets a ring: a colour change alone does not say "this is where
+   your keystrokes are going", and is invisible to anyone who cannot separate the two
+   colours. */
+.note-image-resize:focus-visible .note-image-resize-bar {
+  box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--primary);
+}
+/* Touch: the same chip, in a hit target that meets the 44px minimum. */
+@media (pointer: coarse) {
+  .note-image-resize {
+    height: 44px;
+    width: 120px;
+    /* There is no hover on a touch screen, so the grip stays put — gating it behind a
+       state that finger input cannot produce would simply remove the feature. */
+    opacity: 1;
+  }
+  .note-image-resize-bar {
+    width: 46px;
+    height: 24px;
+  }
+}
+
+.note-image-caption {
+  margin-top: 0.5rem;
+  max-width: 100%;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+/* Editable: the caption IS the edit control, so it needs to look pressable without
+   looking like a button — a hover tint and a text cursor, no border or fill at rest. */
+.note-image-caption-edit {
+  display: inline-block;
+  max-width: 100%;
+  border-radius: 0.375rem;
+  padding: 0.1rem 0.4rem;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  cursor: text;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.note-image-caption-edit:hover,
+.note-image-caption-edit:focus-visible {
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+}
+/* With no description yet, the prompt sits lighter still and italic, so an
+   undescribed image reads as an invitation rather than as a caption saying
+   "Add a description". */
+.note-image-caption-edit.is-empty {
+  font-style: italic;
+  opacity: 0.7;
+}
+/* The field replaces the caption in place, at the same size and alignment, so
+   nothing shifts when it opens. */
+.note-image-caption-input {
+  width: min(28rem, 100%);
+  border: none;
+  border-radius: 0.375rem;
+  background-color: var(--accent);
+  padding: 0.1rem 0.4rem;
+  color: var(--accent-foreground);
+  font: inherit;
+  text-align: center;
+  outline: none;
+}
+.note-image-caption-input::placeholder {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+/* A list card is already a miniature. Honouring a "40% of the column" instruction
+   inside one would produce a thumbnail of a thumbnail, so the card ignores the chosen
+   width and fills its own column instead — the preview shows WHAT is in the note, not
+   the exact proportions of the page. (`!important` because the chosen width is
+   applied as an inline style by the NodeView, which nothing else can outrank.) */
+.note-preview .note-image-figure {
+  width: 100% !important;
+  align-items: flex-start;
+}
+.note-preview .note-image-figure.is-sized .note-image {
+  width: 100%;
+  object-fit: cover;
+  max-height: 8rem;
+}
+/* In a card preview the caption is part of the miniature, just smaller. */
+.note-preview .note-image-caption {
+  margin-top: 0.2rem;
+  font-size: 0.7rem;
+}
+
+/* Checklist (task list): checkable items; checked items are struck + greyed. */
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0.25rem;
+}
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.ProseMirror ul[data-type="taskList"] li > label {
+  flex: 0 0 auto;
+  margin-top: 0.15rem;
+  user-select: none;
+}
+.ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+.ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+}
+.ProseMirror ul[data-type="taskList"] li > div > p {
+  margin: 0;
+}
+.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  text-decoration: line-through;
+  color: var(--muted-foreground);
+}
+/* Keep-style collapse: when enabled, checked items are lifted out of the main
+   list and surfaced in the footer accordion instead (see CheckedItemsFooter).
+   The node is only hidden, never moved, so unchecking restores its exact spot. */
+.collapse-checked .ProseMirror ul[data-type="taskList"] li[data-checked="true"] {
+  display: none;
+}
+
+/* Shared material for every floating/overlay surface (PRD: Surfaces, Depth &
+   Elevation): the note detail panel, the composer bar, and any future modal.
+   One class, one set of tokens — rounded, translucent-tinted, backdrop-blurred,
+   with a soft diffuse shadow — so all elevated surfaces read as the same
+   material instead of ad-hoc borders. */
+/* macOS-style raised top edge: a 1px translucent-white highlight drawn just INSIDE
+   the top border via an inset box-shadow — the real --border stays intact on all
+   four sides, and the highlight sits a pixel below it. Because box-shadow honours
+   border-radius, the highlight follows the rounded corners and tapers into the side
+   borders instead of cutting off abruptly (the flaw of a flat top-border colour).
+   It's the element's OWN box-shadow (not a pseudo) for two reasons: an absolutely-
+   positioned pseudo scrolls away inside the sidebar's own scroll container, whereas
+   a box-shadow is painted on the fixed border box; and by re-listing Tailwind's
+   --tw-* shadow/ring slots after it, the surface keeps its shadow-sm, the cards keep
+   hover:shadow-xl, and selected cards keep their ring — all composited beneath this
+   highlight. Unlayered, so it wins the box-shadow property over Tailwind's @layer
+   utilities while still reading their variables (which hover/selection still set). */
+.raised-top {
+  box-shadow:
+    inset 0 1px 0 0 var(--surface-highlight),
+    var(--tw-ring-offset-shadow, 0 0 #0000),
+    var(--tw-ring-shadow, 0 0 #0000),
+    var(--tw-shadow, 0 0 #0000);
+}
+
+.surface-elevated {
+  border-radius: var(--radius-surface);
+  background-color: var(--surface-tint);
+  -webkit-backdrop-filter: blur(var(--surface-blur)) saturate(1.4);
+  backdrop-filter: blur(var(--surface-blur)) saturate(1.4);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--elevation-shadow);
+}
+/* Accessibility: when the OS/browser asks for reduced transparency, drop the
+   blur and translucency for a fully opaque panel (the shadow/radius remain). */
+@media (prefers-reduced-transparency: reduce) {
+  .surface-elevated {
+    background-color: var(--card);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Search palette surface. Deliberately NOT the note-detail header's frosted glass:
+   the dialog's own overlay already dims AND blurs the page behind it (see dialog.tsx
+   `bg-[var(--backdrop)] backdrop-blur-sm`), so a second backdrop-blur here would be
+   redundant. Instead the panel is a near-opaque --card (a little transparency, no
+   blur of its own) — a clean white-ish surface in light, espresso in dark — that
+   lets the already-blurred backdrop show faintly through. Both the query bar and the
+   results list share it as siblings. */
+.search-surface {
+  background-color: color-mix(in srgb, var(--card) 90%, transparent);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .search-surface {
+    background-color: var(--card);
+  }
+}
+
+/* Floating composer: at rest it frosts to the SAME translucency + blur as the note
+   detail header (via the shared --surface-tint-frost token on the .surface-elevated
+   material), so an idle composer reads as the same glass as the panel behind it.
+   Focusing it (typing) re-solidifies the tint so the text you're writing is easy to
+   read. Overriding --surface-tint (not background-color directly) keeps the
+   reduced-transparency fallback on .surface-elevated intact — it forces --card
+   regardless of this token. */
+.composer-bar {
+  /* At rest the composer is still frosted, but over the bare canvas (no note behind
+     to brighten it) a 50% tint nearly vanished. Lift the resting tint more opaque and
+     firm up the border + shadow so the bar always reads as a distinct floating surface.
+     Focusing solidifies it further (below). Safe to diverge from the note-header frost
+     here: the two are never on screen together (the composer is pushed down / covered
+     the moment a note opens). */
+  --surface-tint: color-mix(in srgb, var(--card) 72%, transparent);
+  --surface-border: color-mix(in srgb, var(--foreground) 14%, transparent);
+  box-shadow: 0 6px 20px -10px rgb(var(--shadow-color) / 0.3),
+    0 2px 6px -3px rgb(var(--shadow-color) / 0.18);
+  /* Ease the frost→solid tint, the focus lift and its deeper shadow together on
+     one gentle ease-out curve, so focusing and blurring both glide. */
+  transition: background-color 0.24s ease,
+    transform 0.32s var(--ease-follow),
+    box-shadow 0.32s var(--ease-follow);
+  /* NO `will-change: transform` here, deliberately. It used to sit on this line and
+     it caused a real, visible bug: the shadow rendered clipped to a hard rectangle
+     and stayed that way until something forced the page to re-lay-out (resizing the
+     window fixed it).
+     `will-change` promotes this bar to its own composited layer PERMANENTLY, and a
+     promoted layer is rasterised once and then reused. Focusing the composer swaps
+     the shadow for a far larger one (see .is-focused below — 64px of blur where
+     there were 20), which is a paint change with no layout change behind it, so the
+     layer went on presenting its old raster: the new shadow drawn into bounds cut
+     for the old one. The backdrop-filter this bar inherits from .surface-elevated
+     puts it on its own surface too, which is why the seam is so crisp.
+     The hint bought nothing anyway — Chrome composites a running transform
+     transition on its own, for exactly as long as it is running, which is the only
+     moment the hint was describing. */
+}
+.composer-bar.is-focused {
+  --surface-tint: color-mix(in srgb, var(--card) 92%, transparent);
+  /* Rise slightly and cast a deeper shadow so an active composer visibly lifts off
+     the list — reinforcing the "now operating" state. Reverses on blur via the
+     shared transition above. */
+  transform: translateY(-10px);
+  box-shadow: 0 10px 24px -8px rgb(var(--shadow-color) / 0.28),
+    0 30px 64px -16px rgb(var(--shadow-color) / 0.34);
+}
+/* Reduced motion: keep the state change (tint) but drop the movement + its easing. */
+@media (prefers-reduced-motion: reduce) {
+  .composer-bar {
+    transition: background-color 0.24s ease;
+  }
+  .composer-bar.is-focused { transform: none; }
+}
+
+/* ─── Note detail panel: frosted, fading header ───────────────────────────────
+   Makes the note panel's HEADER (title + metadata) read as a frosted zone that
+   FADES into a solid writing surface, reusing the panel's SINGLE .surface-elevated
+   blur — there is deliberately NO second/nested backdrop-filter here (that would
+   double-frost; see docs/forge/note-panel-header-{research,prd}.md). The pieces:
+   • .note-panel (desktop <aside>) makes the panel tint a touch more translucent,
+     so the header reveals more of the already-blurred, dimmed list behind it.
+   • .note-body-zone paints an opaque writing surface that FADES IN over --note-fade,
+     tapering the header frost to solid; its content is padded below the fade so the
+     toolbar + editor are ALWAYS on a solid surface (at rest and while scrolled).
+   • .note-title-row is sticky (see T-02); a sentinel + IntersectionObserver adds
+     .is-stuck only while it's pinned, giving it a near-solid backing so it stays
+     legible over scrolling content without inverting the at-rest frost→solid fade.
+   Frost is scoped to .note-frosted (the desktop panel). The mobile bottom sheet
+   (solid) and the reduced-transparency fallback instead get a plain hairline that
+   keeps the header reading as a distinct zone without any translucency. */
+.note-panel {
+  /* More translucent than --surface-tint so the header frost is actually visible;
+     the lower half re-solidifies via .note-body-zone. Uses the shared frost token
+     so the composer's at-rest tint tracks any change here. */
+  --surface-tint: var(--surface-tint-frost);
+}
+.note-view {
+  --note-fade: 2rem;         /* height of the frost→solid taper above the toolbar  */
+  --note-solid: var(--card); /* the writing-surface colour the header fades into  */
+  /* Writing-column horizontal insets — kept in sync with the columns' Tailwind
+     px-5 / sm:pl-16 sm:pr-8 so the toolbar can break out to full width by exactly
+     cancelling them when it pins. The wider left inset also gives the block drag
+     handle + "+" cluster a roomier gutter (bigger, easier targets). */
+  --note-inset-l: 1.25rem;
+  --note-inset-r: 1.25rem;
+}
+@media (min-width: 640px) {
+  .note-view { --note-inset-l: 4rem; --note-inset-r: 2rem; }
+}
+@media (max-width: 639px) {
+  /* Tighter frost taper on phones so the toolbar sits closer to the header — less of
+     the small viewport spent on the gap between the metadata and the writing area. */
+  .note-view { --note-fade: 1rem; }
+}
+
+/* Sticky title row: pins to the top of the scroll area while the metadata block
+   and content scroll away beneath it. At rest it's transparent (shows the header
+   frost, preserving the top-frosted→bottom-solid direction). When pinned, a
+   sentinel + IntersectionObserver adds .is-stuck, giving it a near-solid backing
+   (+ hairline) so scrolling content stays masked and the title legible — WITHOUT
+   a nested blur. */
+.note-title-row {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  /* The solid backing (and its hairline) fades in/out as the title pins/unpins,
+     rather than snapping — see the .is-stuck rules below. */
+  transition: background-color 0.22s ease, box-shadow 0.22s ease;
+}
+/* Mobile pin/unpin motion. The title element swaps between an editable <textarea>
+   (at rest, may wrap) and a truncating display <div> (pinned, shows "…"), so its
+   font-size can't CSS-tween across the swap; instead the incoming title cross-fades
+   in on each toggle while the row's padding + backing ease, so the whole header
+   reads as animating both into and out of the pinned state. One toggle per
+   pin/unpin (IntersectionObserver), so this never runs per scroll frame. */
+@media (max-width: 639px) {
+  .note-title-row .type-title { animation: note-title-swap 0.22s ease; }
+}
+@keyframes note-title-swap {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* Collapsing title (mobile): once the title pins (.is-stuck), it shrinks to a single
+   truncated line so a heading you've already read stops eating half the small
+   viewport. The auto-grow effect re-measures on the stuck toggle (see NoteView) so
+   the textarea's height collapses to that one line. */
+@media (max-width: 639px) {
+  /* Override the type token the title reads (not font-size directly) so this wins
+     regardless of Tailwind's cascade layers; .type-title recomputes to the smaller
+     size. No font-size transition: the JS auto-grow re-measures the textarea's
+     one-line height on the stuck toggle, and a mid-flight font animation would make
+     it read a wrong (intermediate) height — which left the title clipped when
+     scrolling back up. Snapping the size keeps the measured height correct. */
+  .note-title-row.is-stuck { --type-title-size: 1.1875rem; }
+  /* One truncated line once pinned. Targets .type-title generally: while pinned the
+     editable <textarea> is swapped for a display <div> (a textarea can't show an
+     ellipsis), and this keeps both single-lined with a trailing "…". */
+  .note-title-row.is-stuck .type-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+.note-frosted .note-title-row.is-stuck {
+  /* Fully opaque once pinned: the frost is an AT-REST effect (transparent title
+     revealing what's behind the modal); while scrolling, the title must solidly
+     mask the note's own content passing beneath it. */
+  background-color: var(--card);
+  box-shadow: 0 1px 0 0 var(--surface-border);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .note-frosted .note-title-row.is-stuck {
+    background-color: var(--card);
+    box-shadow: 0 1px 0 0 var(--surface-border);
+  }
+}
+
+/* Formatting toolbar (PRD 8 + fixed-chrome). It sticks beneath the fixed title
+   (top = the title's measured height, --note-title-h). Two looks:
+   • AT REST — a considered floating bar: rounded, bordered, soft-shadowed, inset
+     within the writing column.
+   • WHEN PINNED (.note-toolbar-stuck, toggled by a sentinel/IntersectionObserver
+     once it reaches the header) — it snaps to a FULL-WIDTH bar with a bottom
+     hairline (breaking out of the column insets), so title + toolbar read as one
+     fixed header. Its opaque card background masks content scrolling beneath it;
+     z below the title so the title always wins. */
+.note-toolbar {
+  position: sticky;
+  top: var(--note-title-h, 4rem);
+  z-index: 15;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--card);
+  box-shadow: 0 1px 2px 0 rgb(var(--shadow-color) / 0.08);
+  /* Ease the floating → full-width change so pinning reads as a smooth expand
+     rather than a jarring snap. Safe with the IntersectionObserver detection
+     (fires once at the boundary, so it can't restart this transition per-frame). */
+  transition: margin 0.16s ease, border-radius 0.16s ease,
+    border-color 0.16s ease, box-shadow 0.16s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .note-toolbar { transition: none; }
+}
+.note-toolbar-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  overflow-x: auto;
+  padding: 0.375rem 0.5rem;
+}
+@media (min-width: 640px) {
+  .note-toolbar-inner { flex-wrap: wrap; }
+}
+.note-toolbar.note-toolbar-stuck {
+  margin-left: calc(-1 * var(--note-inset-l));
+  margin-right: calc(-1 * var(--note-inset-r));
+  margin-bottom: 0;
+  border-color: transparent;
+  border-bottom-color: var(--border);
+  border-radius: 0;
+  box-shadow: none;
+}
+.note-toolbar.note-toolbar-stuck .note-toolbar-inner {
+  padding-left: var(--note-inset-l);
+  padding-right: var(--note-inset-r);
+}
+
+/* Body / writing zone: an opaque surface that fades in from the frosted header.
+   Multi-stop eased alpha ramp instead of a plain two-stop linear: a linear ramp
+   reaches 100% abruptly and the eye catches that "crease". The stops are weighted
+   so solidification approaches the end gradually (85→94→100% across the last ~20%),
+   which is exactly where the crease was. The ramp completes at --note-fade, right
+   at the toolbar's top edge (padding-top matches), so the whole taper is visible
+   above the toolbar rather than hidden behind its opaque bar. The final colour
+   holds, so everything below the taper is fully solid regardless of content height. */
+.note-body-zone {
+  background-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    color-mix(in srgb, var(--note-solid) 8%, transparent) calc(var(--note-fade) * 0.25),
+    color-mix(in srgb, var(--note-solid) 30%, transparent) calc(var(--note-fade) * 0.5),
+    color-mix(in srgb, var(--note-solid) 60%, transparent) calc(var(--note-fade) * 0.72),
+    color-mix(in srgb, var(--note-solid) 85%, transparent) calc(var(--note-fade) * 0.86),
+    color-mix(in srgb, var(--note-solid) 94%, transparent) calc(var(--note-fade) * 0.95),
+    var(--note-solid) var(--note-fade)
+  );
+  padding-top: var(--note-fade);
+}
+
+/* Mobile note sheet: bring the desktop panel's frosted-glass header to the phone.
+   The sheet MATERIAL is translucent + blurred (mirrors .surface-elevated) so the
+   header reveals the dimmed list behind it; the .note-frosted body-zone fade then
+   re-solidifies to --card below the header, keeping the writing surface fully opaque
+   and legible. Answers "why is the header not frosted on mobile" — now it is. */
+.note-sheet-frosted {
+  background-color: var(--surface-tint-frost);
+  -webkit-backdrop-filter: blur(var(--surface-blur)) saturate(1.4);
+  backdrop-filter: blur(var(--surface-blur)) saturate(1.4);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .note-sheet-frosted {
+    background-color: var(--card);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* There is no non-frosted variant. Three `.note-view:not(.note-frosted)` blocks used
+   to live here for a solid-header phone sheet, back when NoteView took a `frosted`
+   prop the mobile sheet set to false. The phone sheet gained its own frost
+   (.note-sheet-frosted, below) and both callers fell back to the default, so the
+   class was always present and none of those rules could ever match. Reduced
+   transparency is handled by the media query below, which is the case they were
+   really covering. */
+
+/* Reduced transparency: .surface-elevated is already forced solid (--card) above,
+   so drop the frost taper for a plain hairline zone divider — header stays
+   distinct with zero translucency. */
+@media (prefers-reduced-transparency: reduce) {
+  .note-frosted .note-body-zone {
+    background-image: none;
+    border-top: 1px solid var(--surface-border);
+    padding-top: 1rem;
+  }
+}
+
+/* ─── Inline note-link chip (note-link-chip-prd.md) ───────────────────────────
+   A reference to another note, sitting INSIDE a sentence. Its whole job is to be
+   two things at once: unmistakably a link, and unmistakably not the external kind.
+
+   Where the smart-link below is a bordered card on its own line, this is a small
+   tinted pill in the text flow, carrying a page glyph rather than a chain. Shape,
+   position and icon all disagree with an external link, so the two can never be
+   confused at a glance even in a black-and-white print.
+
+   The tint is mixed from --primary rather than set as a hex, so it follows the
+   theme; at 12% it reads as a highlight on cream and as a warm lift on espresso,
+   without either becoming a solid block that fights the surrounding prose. */
+.note-link { display: inline; }
+.note-link-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3em;
+  /* Vertical padding kept tiny and the line-height inherited, so a chip never makes
+     its line taller than its neighbours — a paragraph with three references must not
+     end up loosely spaced compared with the one below it. */
+  padding: 0.05em 0.4em;
+  border-radius: 0.4em;
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.note-link-chip:hover {
+  background: color-mix(in srgb, var(--primary) 20%, transparent);
+}
+/* The glyph sits on the text baseline rather than centred on the box: an icon that
+   is vertically centred in an inline-flex box rides visibly high against the words
+   on either side of it. */
+.note-link-icon {
+  align-self: center;
+  flex-shrink: 0;
+}
+/* A very long note title must not push the line around (PRD §7). It is clipped with
+   an ellipsis rather than wrapped, because a chip broken across two lines stops
+   reading as one object — and the full title is still in the accessible name and the
+   tooltip. The max-width is in `em` so it scales with the surrounding type. */
+.note-link-title {
+  display: inline-block;
+  max-width: 22em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+/* A reference whose target is gone — deleted, trashed, or unlinked from the Links
+   row. It stays put rather than vanishing (deleting someone's words on their behalf
+   is not ours to do) and stops pretending to work. Struck through AND dimmed: the
+   strike is what carries the meaning to a reader who cannot see the colour change,
+   which is the whole of "not by colour alone". */
+.note-link-chip.is-broken {
+  background: color-mix(in srgb, var(--muted-foreground) 12%, transparent);
+  color: var(--muted-foreground);
+  text-decoration: line-through;
+  cursor: default;
+}
+.note-link-chip.is-broken:hover {
+  background: color-mix(in srgb, var(--muted-foreground) 12%, transparent);
+}
+/* The static form — card previews, clipboard HTML — is the same pill, minus the
+   affordances it cannot honour outside a live editor. */
+.note-link-static { cursor: inherit; }
+.note-preview .note-link-chip { font-size: 0.95em; }
+
+/* Smart-link block (prd-smart-link-blocks.md): a recognized pasted URL renders as a
+   styled card — a bundled provider mark (or a neutral glyph) + label + the URL. It is
+   a purely LOCAL rendering of the URL string; nothing is ever fetched. The mark is
+   drawn in the theme foreground (not the brand colour) so it stays legible in both
+   light and dark — brand colours like pure-black would vanish on a dark surface. */
+.smart-link { margin: 0.4rem 0; }
+.smart-link-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--card);
+  padding: 0.5rem 0.625rem;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.smart-link-card:hover {
+  border-color: color-mix(in srgb, var(--foreground) 20%, transparent);
+  box-shadow: 0 1px 2px 0 rgb(var(--shadow-color) / 0.08);
+}
+.smart-link-main {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+.smart-link-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  border-radius: 0.5rem;
+  background: var(--scrim);
+  color: var(--foreground);
+}
+.smart-link-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.smart-link-label { font-weight: 600; font-size: 0.9rem; }
+.smart-link-url {
+  font-size: 0.8rem;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.smart-link-remove {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.375rem;
+  color: var(--muted-foreground);
+  opacity: 0;
+  transition: opacity 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+}
+.smart-link-card:hover .smart-link-remove,
+.smart-link-remove:focus-visible { opacity: 1; }
+.smart-link-remove:hover { background: var(--scrim); color: var(--foreground); }
+/* Touch devices have no hover, so keep the remove control visible there. */
+@media (hover: none) { .smart-link-remove { opacity: 1; } }
+
+/* Note-card action buttons (bottom action bar + pin toggle) sit on cards that
+   can carry any of 10 note colors, so a brand-tinted hover (--accent) can vanish
+   on a blue/teal card or clash on a warm one. Instead their hover is a neutral
+   translucent scrim — dark-on-light, light-on-dark — which reads consistently
+   and legibly over every note colour AND the plain white/dark card. */
+.card-action-btn:hover {
+  background-color: var(--scrim);
+}
+
+/* Folder/tag chips on cards use that same neutral scrim so they read
+   consistently over every note colour instead of the old secondary/accent fills. */
+.chip-scrim {
+  background-color: var(--scrim);
+}
+
+/* App-wide icon-button hover (PRD 6): top bar, editor toolbar, sidebar, and any
+   other icon button reach for the SAME neutral scrim as the note action bar, so
+   every icon button hovers identically and stays visible on any background. */
+.hover-scrim {
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.hover-scrim:hover {
+  background-color: var(--scrim);
+}
+/* Pressed feedback: deepen the same scrim so every quiet control presses the same
+   (pairs with the icon-press/whileTap scale used elsewhere). */
+.hover-scrim:active {
+  background-color: var(--scrim-strong);
+}
+
+/* Bottom-of-list fade: notes scrolling down toward the composer dissolve into the
+   page canvas instead of meeting a hard edge, so anything still below the fold
+   reads as "fading away". Sits ABOVE the cards (z-20) but BELOW the floating
+   composer (z-30); pointer-events:none keeps scroll/click passing through. The
+   eased multi-stop ramp avoids a visible banding edge. */
+.list-fade-bottom {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 9rem;
+  z-index: 20;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    var(--canvas) 0,
+    var(--canvas) 3.25rem,
+    color-mix(in srgb, var(--canvas) 88%, transparent) 4.5rem,
+    color-mix(in srgb, var(--canvas) 62%, transparent) 6rem,
+    color-mix(in srgb, var(--canvas) 30%, transparent) 7.5rem,
+    transparent 9rem
+  );
+}
+
+/* The same fade, deeper, while the composer has focus.
+
+   Why a SECOND layer rather than swapping the gradient stops on the one above:
+   `background-image` is not an interpolatable property, so putting a transition on
+   it yields an abrupt swap, not a ramp. Cross-fading two stacked gradients is what
+   actually animates. At rest this layer is invisible, which costs nothing (no paint,
+   no hit testing — the parent is already pointer-events: none).
+
+   It GROWS as well as fades: the height animates from 9rem, exactly where the
+   resting fade above ends, up to 24rem — so focusing the composer reads as the fade
+   already on screen rising, rather than a second, taller fade appearing out of
+   nowhere on top of it.
+
+   Which is why every stop below is a PERCENTAGE and not a rem. With absolute stops
+   the ramp would stay anchored while the box grew around it, so the box would clip
+   a gradient mid-ramp and drag a hard horizontal edge up the screen for the whole
+   animation. In percentages the ramp always fits the box exactly: `transparent`
+   lands on the top edge at every intermediate height, so there is no edge to see at
+   any point in the growth. The percentages are the same shape the rem values
+   described (6rem of 24 = 25%, 8 = 33%, and so on) — the geometry below is
+   unchanged, only the units are.
+
+   The intent is attention, not disablement. The list stays fully scrollable and
+   clickable in every state; what changes is how much visual weight the cards
+   nearest the composer carry while you are writing. Deliberately NOT the dialog
+   backdrop treatment — a uniform all-at-once dim is this app's language for
+   "inactive", and the list underneath is nothing of the kind. This extends the
+   fade idiom the list already runs at all times instead.
+
+   Where the numbers come from, rather than taste. Measured on a 900px-tall desktop
+   viewport: the composer's top edge sits ~82px above the bottom, and a note row is
+   ~324px on the pitch. So the SOLID part stops at 6rem (96px) — just past the
+   composer's own footprint, and no further, because solid canvas above the bar is
+   covering notes rather than seating it. Everything above that is the translucent
+   ramp, running all the way to 24rem (384px), which reaches y≈516 and therefore well
+   into the row of cards sitting above the composer.
+
+   That split is the whole point: between the resting fade and this one the opaque
+   part grows by half a rem and the translucent part grows by nine and a half. The
+   notes above the bar are meant to still be THERE — legible as shapes, clearly not
+   gone — just carrying less weight than the thing being written. A tall wash does
+   that; a tall block of solid canvas would just be a shorter list.
+
+   The stops are all derived from var(--canvas), the same token the resting fade
+   uses, so the dark theme follows automatically rather than needing its own pass. */
+.list-fade-bottom::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  /* Starts level with the resting fade above, so there is nothing to see until it
+     moves. */
+  height: 9rem;
+  opacity: 0;
+  /* Both on the composer's own focus curve, so the bar rising and the list receding
+     are one movement rather than two things happening near each other. The opacity
+     settles FIRST (0.24s against 0.34s) deliberately: the last tenth of a second is
+     then at full strength and still growing, which is the part that reads as growth
+     rather than as an appearance. */
+  transition: height 0.34s var(--ease-follow), opacity 0.24s var(--ease-follow);
+  background: linear-gradient(
+    to top,
+    var(--canvas) 0,
+    var(--canvas) 25%,
+    color-mix(in srgb, var(--canvas) 88%, transparent) 33%,
+    color-mix(in srgb, var(--canvas) 70%, transparent) 44%,
+    color-mix(in srgb, var(--canvas) 50%, transparent) 56%,
+    color-mix(in srgb, var(--canvas) 32%, transparent) 71%,
+    color-mix(in srgb, var(--canvas) 15%, transparent) 85%,
+    transparent 100%
+  );
+}
+.list-fade-bottom.is-composer-focused::after {
+  height: 24rem;
+  opacity: 1;
+}
+/* Reduced motion: keep the state change, drop the ramp — same treatment the
+   composer's own focus lift and .list-fade-top already get. */
+@media (prefers-reduced-motion: reduce) {
+  .list-fade-bottom::after { transition: none; }
+}
+
+/* Top-of-list fade: the mirror of .list-fade-bottom. Notes dissolve into the
+   canvas as they scroll UP out of view beneath the top bar. Hidden at rest (so the
+   first notes aren't faded when scrolled to the top) and fades in once the list has
+   scrolled — .is-visible is toggled from NoteList's scroll position. */
+.list-fade-top {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 4.5rem;
+  z-index: 20;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  background: linear-gradient(
+    to bottom,
+    var(--canvas) 0,
+    var(--canvas) 0.75rem,
+    color-mix(in srgb, var(--canvas) 60%, transparent) 2.25rem,
+    color-mix(in srgb, var(--canvas) 22%, transparent) 3.5rem,
+    transparent 4.5rem
+  );
+}
+.list-fade-top.is-visible {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .list-fade-top { transition: none; }
+}
+
+/* Icon-button tooltips (Radix) — a dark warm-espresso chip with cream text,
+   rounded, arrowed, with a quick fade + scale-in. Styled here (not via the
+   missing tailwindcss-animate utilities) so it animates for real. */
+.tt-content {
+  z-index: 60;
+  max-width: 16rem;
+  border-radius: 8px;
+  padding: 5px 9px;
+  font-size: 12px;
+  line-height: 1.25;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  color: var(--tooltip-foreground);
+  background: var(--tooltip);
+  box-shadow: 0 6px 18px rgb(var(--shadow-color) / 0.28), 0 1px 3px rgb(var(--shadow-color) / 0.18);
+  user-select: none;
+  transform-origin: var(--radix-tooltip-content-transform-origin);
+  animation: tt-in 0.13s var(--ease-follow);
+}
+.tt-arrow {
+  fill: var(--tooltip);
+}
+@keyframes tt-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tt-content { animation: none; }
+}
+
+/* Popovers & dropdown menus (Radix): a subtle fade + zoom-from-95 on open and the
+   reverse on close — the popular Radix/shadcn pattern. The close animation keeps
+   the content mounted until it finishes (Radix Presence waits for animationend).
+   CRUCIAL: we animate the *independent* `scale` property, NOT `transform` — Radix
+   positions the content with an inline `transform: translate(...)`, and animating
+   `transform` here would clobber that and snap the popover to the corner. `scale`
+   composes with it and grows from the trigger via the radix transform-origin. */
+.pop-anim {
+  transform-origin: var(
+    --radix-popover-content-transform-origin,
+    var(--radix-dropdown-menu-content-transform-origin, center)
+  );
+}
+.pop-anim[data-state="open"] {
+  animation: pop-in 0.16s var(--ease-follow);
+}
+.pop-anim[data-state="closed"] {
+  animation: pop-out 0.12s ease-in forwards;
+}
+@keyframes pop-in {
+  from { opacity: 0; scale: 0.96; }
+  to   { opacity: 1; scale: 1; }
+}
+@keyframes pop-out {
+  from { opacity: 1; scale: 1; }
+  to   { opacity: 0; scale: 0.96; }
+}
+
+/* Modals (Radix Dialog): overlay cross-fades; the panel fades + zooms from 96%.
+   Reverse on close, held until the animation ends.
+
+   ── The property split these keyframes depend on ──────────────────────────────
+   CSS applies translate → rotate → scale → transform, always in that order, with
+   `transform` innermost. So the three jobs are split to stay out of each other's
+   way, and each one has to stay in its lane:
+
+     translate   WHERE the panel sits (the -50%,-50% centring, set in dialog.tsx)
+     scale       the zoom, here
+     transform   an animation's own OFFSET (the slide/rise below)
+
+   This split is not stylistic. When the centring lived in `transform` and the zoom
+   in `scale`, the scale multiplied the centring offset: at 0.96 the panel pulled
+   back 48% of its width instead of 50%, so the right edge held still and the left
+   edge travelled 20px. Every modal in the app grew out of its bottom-right corner.
+   Keeping placement in the outermost property is what makes the zoom centred, and
+   it stays correct for the dialogs that centre differently (search palette, mobile
+   full-screen, bottom sheets) without any of them hard-coding a transform. */
+.overlay-anim[data-state="open"] { animation: overlay-in 0.2s ease-out; }
+.overlay-anim[data-state="closed"] { animation: overlay-out 0.16s ease-in forwards; }
+.dialog-anim[data-state="open"] { animation: dialog-in 0.2s var(--ease-follow); }
+.dialog-anim[data-state="closed"] { animation: dialog-out 0.16s ease-in forwards; }
+@keyframes overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes overlay-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes dialog-in {
+  from { opacity: 0; scale: 0.96; }
+  to   { opacity: 1; scale: 1; }
+}
+@keyframes dialog-out {
+  from { opacity: 1; scale: 1; }
+  to   { opacity: 0; scale: 0.96; }
+}
+
+/* First-run welcome: a longer, softer arrival than the ordinary dialog zoom.
+   Every other dialog in the app is a tool being opened and is right to be brisk —
+   0.2s, barely noticed, out of the way. This one is the first thing a new library
+   ever shows, it follows a welcome animation rather than a click, and nobody sees it
+   twice. So it rises rather than zooms, and takes long enough to feel deliberate.
+   Still FOLLOW (--ease-follow): the eye tracks it up. Duration carries the ceremony;
+   the curve is the same one the rest of the app uses. */
+.onboarding-anim[data-state="open"] { animation: onboarding-in 0.62s var(--ease-follow); }
+.onboarding-anim[data-state="closed"] { animation: dialog-out 0.18s ease-in forwards; }
+@keyframes onboarding-in {
+  from { opacity: 0; scale: 0.94; transform: translateY(18px); }
+  60%  { opacity: 1; }
+  to   { opacity: 1; scale: 1; transform: translateY(0); }
+}
+
+/* Search palette: instead of the centred zoom, it slides DOWN from the top — its
+   trigger lives in the top bar, so dropping in from above reads as "opening from
+   there". The slide lives in `transform`, which is the innermost transform property,
+   so it composes with the panel's `translate: -50% 0` centring instead of
+   overwriting it — same split the zoom above relies on. */
+.search-anim[data-state="open"] { animation: search-in 0.22s var(--ease-follow); }
+.search-anim[data-state="closed"] { animation: search-out 0.16s ease-in forwards; }
+@keyframes search-in {
+  from { opacity: 0; transform: translateY(-20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes search-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-12px); }
+}
+
+/* Bottom-sheet drawers (mobile ResponsivePopover / ResponsiveMenu): slide UP from
+   below the viewport rather than the centred zoom, so a drawer reads as coming from
+   the bottom edge it's anchored to. The slide lives in `transform` so it composes
+   with the sheet's own placement rather than overwriting it (mirrors search-anim). */
+.sheet-anim[data-state="open"] { animation: sheet-in 0.28s var(--ease-follow); }
+.sheet-anim[data-state="closed"] { animation: sheet-out 0.2s ease-in forwards; }
+@keyframes sheet-in {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes sheet-out {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
+
+/* Accessibility: honour a reduced-motion preference by dropping the movement. With
+   no animation running, Radix Presence unmounts the closing element immediately —
+   so these surfaces simply appear/disappear, no zoom or fade travel. */
+@media (prefers-reduced-motion: reduce) {
+  .pop-anim[data-state="open"], .pop-anim[data-state="closed"],
+  .overlay-anim[data-state="open"], .overlay-anim[data-state="closed"],
+  .dialog-anim[data-state="open"], .dialog-anim[data-state="closed"],
+  .onboarding-anim[data-state="open"], .onboarding-anim[data-state="closed"],
+  .sheet-anim[data-state="open"], .sheet-anim[data-state="closed"],
+  .search-anim[data-state="open"], .search-anim[data-state="closed"] {
+    animation: none;
+  }
+}
+.card-action-btn {
+  transition: background-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
+}
+.card-action-btn:active {
+  transform: scale(0.94);
+}
+
+/* Consistent press feedback (PRD 5) for icon buttons that aren't already
+   framer-motion-driven (the top-bar/add buttons use whileTap). A subtle scale
+   on :active gives every icon button the same tactile response. Matches the
+   0.94 whileTap used elsewhere so the whole app presses the same way. */
+.icon-press {
+  transition: background-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
+}
+.icon-press:active {
+  transform: scale(0.94);
+}
+
+/* Block drag-to-reorder (blockDragHandle.ts): a floating handle + drop line,
+   both fixed-positioned on <body> and driven by pointer coordinates. */
+.lockpad-drag-handle {
+  position: fixed;
+  z-index: 50;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  /* The visible chrome lives on the inner grip; the outer div is the (larger) hit
+     target — roomier now that the note's left gutter is wider (kept in sync with
+     positionHandle()'s w/addW). */
+  width: 24px;
+  height: 32px;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.lockpad-drag-handle-grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border-radius: 7px;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  opacity: 0.9;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.lockpad-drag-handle:hover .lockpad-drag-handle-grip {
+  background: var(--accent);
+  color: var(--foreground);
+  opacity: 1;
+}
+/* Contextual "+" insert affordance (PRD 7): a sibling of the drag grip, floated
+   in the left gutter on block hover. Mirrors the grip's look so the two read as
+   one cluster. */
+.lockpad-add-block {
+  position: fixed;
+  z-index: 50;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 32px;
+  background: transparent;
+  cursor: pointer;
+  user-select: none;
+}
+.lockpad-add-block-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border-radius: 7px;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  opacity: 0.9;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.lockpad-add-block:hover .lockpad-add-block-icon {
+  background: var(--accent);
+  color: var(--foreground);
+  opacity: 1;
+}
+body.lockpad-dragging .lockpad-add-block {
+  display: none;
+}
+.lockpad-drop-indicator {
+  position: fixed;
+  z-index: 50;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--primary);
+  pointer-events: none;
+  transform: translateY(-1px);
+}
+.lockpad-drag-source {
+  opacity: 0.4;
+}
+body.lockpad-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+body.lockpad-dragging .lockpad-drag-handle {
+  cursor: grabbing;
+}
+
+/* The grip is a real control now, not a decorated div — so it takes focus, and focus
+   has to be visible. */
+.lockpad-drag-handle:focus-visible {
+  outline: none;
+}
+.lockpad-drag-handle:focus-visible .lockpad-drag-handle-grip {
+  background: var(--accent);
+  color: var(--foreground);
+  opacity: 1;
+  box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--primary);
+}
+
+/* Touch: the same grip, moved out of the gutter (which is 20px wide on a phone) to the
+   trailing edge of the block the caret is in, and grown to a 34px target. Drawn as a
+   solid chip because it floats over the text rather than beside it — see the note on
+   showTouchHandle() for why this edge. */
+.lockpad-drag-handle.is-touch {
+  width: 34px;
+  height: 34px;
+}
+/* The one property this whole touch design rests on, restated because the grip is a
+   role="button" and the tap-delay rule further down sets every button to
+   `touch-action: manipulation`. `manipulation` still lets the browser claim a vertical
+   pan — which is precisely the theft this design exists to prevent — so the grip is
+   pinned back to `none` at a specificity that rule cannot reach. */
+.lockpad-drag-handle[role="button"],
+.lockpad-drag-handle.is-touch {
+  touch-action: none;
+}
+.lockpad-drag-handle.is-touch .lockpad-drag-handle-grip {
+  width: 34px;
+  height: 34px;
+  opacity: 1;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.22);
+}
+
+/* The grip's menu: reordering for anyone not holding a mouse — a keyboard, or a finger
+   that would rather tap twice than drag. */
+.lockpad-block-menu {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  min-width: 9rem;
+  padding: 0.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+.lockpad-block-menu-item {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  border-radius: 0.5rem;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--card-foreground);
+  text-align: left;
+  cursor: pointer;
+}
+@media (pointer: fine) {
+  .lockpad-block-menu-item { min-height: 2rem; }
+}
+.lockpad-block-menu-item:hover,
+.lockpad-block-menu-item:focus-visible {
+  background: var(--accent);
+  outline: none;
+}
+
+/* ─── Mobile / touch refinements ──────────────────────────────────────────────
+   A small set of touch-only rules (keyed on `pointer: coarse` or the phone width)
+   that make the app read as a native app rather than a shrunk desktop site. None
+   of these affect a real-pointer (desktop) device. */
+
+/* Kill the legacy ~300ms tap delay and double-tap-zoom on interactive controls so
+   every tap registers instantly. Scoped to actual controls (NOT the page or the
+   editable body) so pinch-zoom and text selection are untouched. */
+button,
+[role="button"],
+a,
+label,
+summary,
+input[type="checkbox"],
+input[type="radio"] {
+  touch-action: manipulation;
+}
+
+/* Touch devices: the card's bottom action bar is revealed by hover on desktop and
+   by long-press on mobile — but long-press is undiscoverable. On a coarse pointer
+   show the bar (and the pin toggle) at rest so the actions are always in reach, and
+   grow every card-action control to a comfortable ~40px touch target. Space for the
+   bar is already reserved (min-h-8, see NoteCard), so showing it shifts nothing. */
+@media (pointer: coarse) {
+  .card-action-bar {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+  .card-action-btn {
+    min-height: 2.5rem;
+    min-width: 2.5rem;
+  }
+  /* Forced visible at rest — but NOT for controls that are genuinely unavailable.
+     A blanket `opacity: 1 !important` here also out-ranked Tailwind's
+     `disabled:opacity-40`, so on a phone a locked note's Duplicate and Export
+     looked exactly as available as the actions that actually work. */
+  .card-action-btn:not(:disabled) {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}
+
+/* ── PDF export (print) ──────────────────────────────────────────────────────
+   The note print view (NotePrintHost) is a portal child of <body>, hidden on
+   screen and revealed only for print media, where it becomes the whole page.
+   Typography here is export-specific (serif title, sans body INCLUDING body
+   headings) and does NOT affect the app's own in-editor type. */
+.note-print-portal { display: none; }
+
+@media print {
+  @page { margin: 1.8cm; }
+  html, body { background: #fff; }
+  /* Only the note prints — hide the live app entirely. */
+  body > *:not(.note-print-portal) { display: none !important; }
+  .note-print-portal { display: block !important; }
+
+  .note-print {
+    color: #111;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+  /* Title in the serif face; body (incl. its headings) in sans — the export spec's
+     deliberate split. */
+  .note-print-title {
+    font-family: var(--font-serif);
+    font-size: 22pt;
+    font-weight: 600;
+    line-height: 1.15;
+    margin: 0 0 0.35rem;
+  }
+  .note-print-dates {
+    font-size: 8.5pt;
+    color: #666;
+    margin: 0 0 1.4rem;
+  }
+  .note-print-body h1, .note-print-body h2, .note-print-body h3,
+  .note-print-body h4, .note-print-body h5, .note-print-body h6 {
+    font-family: inherit; /* sans, overriding the app's serif in-editor headings */
+    font-weight: 600;
+    line-height: 1.25;
+    margin: 1.1em 0 0.4em;
+  }
+  .note-print-body h1 { font-size: 16pt; }
+  .note-print-body h2 { font-size: 14pt; }
+  .note-print-body h3 { font-size: 12pt; }
+  .note-print-body p { margin: 0.5em 0; }
+  .note-print-body ul, .note-print-body ol { margin: 0.5em 0; padding-left: 1.4em; }
+  .note-print-body li { margin: 0.2em 0; }
+  .note-print-body a { color: #1a4f8a; text-decoration: underline; }
+  .note-print-body blockquote {
+    border-left: 3px solid #ccc;
+    padding-left: 1rem;
+    margin: 0.6em 0;
+    color: #555;
+  }
+  .note-print-body hr { border: none; border-top: 1px solid #ddd; margin: 1.2em 0; }
+  /* Pictures on paper: bounded to the printable column and kept whole. A photo
+     split across a page break is unreadable in a way a paragraph is not. */
+  .note-print-body img {
+    display: block;
+    max-width: 100%;
+    max-height: 8in;
+    height: auto;
+    margin: 0.6em auto;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  /* A captioned picture prints as one unit — a caption stranded at the top of the
+     next page describes nothing. */
+  .note-print-body figure {
+    margin: 0.8em 0;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .note-print-body figure img { margin: 0 auto; width: 100%; }
+  /* A figure with no chosen width falls back to the picture's own size. */
+  .note-print-body figure:not([style*="width"]) { width: fit-content; margin-inline: auto; }
+  .note-print-body figure:not([style*="width"]) img { width: auto; }
+  .note-print-body figcaption {
+    margin-top: 0.35em;
+    text-align: center;
+    font-size: 9pt;
+    color: #666;
+  }
+  /* Highlights on paper. Fixed ink values rather than the app's theme variables:
+     the page is always white here, and a print driver told to save toner will drop
+     a background it thinks is decorative — so these are chosen light enough that
+     losing them costs nothing, and dark enough to survive if they are kept. */
+  .note-print-body mark { background: #fbecc0; color: inherit; padding: 0.05em 0.1em; }
+  .note-print-body mark[data-color="green"]  { background: #cdeedb; }
+  .note-print-body mark[data-color="blue"]   { background: #cfe0f5; }
+  .note-print-body mark[data-color="pink"]   { background: #f7d2e4; }
+  .note-print-body mark[data-color="purple"] { background: #e2d3f3; }
+  .note-print-body :not(pre) > code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+    background: #f2f2f2;
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+  }
+  /* Code blocks: white fill + black border for print (ink-friendly — no heavy dark
+     block to lay down), monospace and bordered so they still read as a code block. */
+  .note-print-body pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: #fff;
+    color: #111;
+    border: 1px solid #111;
+    border-radius: 8px;
+    padding: 0.7em 0.9em;
+    font-size: 9.5pt;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .note-print-body pre code { background: none; color: inherit; padding: 0; }
+  /* Real checkbox glyphs — a bordered box, with a drawn check for completed items. */
+  .note-print-body ul.task-list { list-style: none; padding-left: 0.1em; }
+  .note-print-body ul.task-list li { display: flex; align-items: flex-start; gap: 0.5rem; margin: 0.25em 0; }
+  .note-print-body ul.task-list .task-box {
+    flex: 0 0 auto;
+    width: 0.85rem;
+    height: 0.85rem;
+    margin-top: 0.18rem;
+    border: 1.5px solid #444;
+    border-radius: 3px;
+    position: relative;
+    box-sizing: border-box;
+  }
+  .note-print-body ul.task-list li[data-checked="true"] .task-box::after {
+    content: "";
+    position: absolute;
+    left: 0.25rem;
+    top: 0.02rem;
+    width: 0.25rem;
+    height: 0.48rem;
+    border: solid #222;
+    border-width: 0 1.6px 1.6px 0;
+    transform: rotate(45deg);
+  }
+  .note-print-body ul.task-list li[data-checked="true"] > div { color: #666; text-decoration: line-through; }
+  .note-print-body ul.task-list li > div > p { margin: 0; }
+  .note-print-body ul.task-list li > div > *:first-child { margin-top: 0; }
+}
+
+/* Delete's strikethrough (micro-interactions-delete-prd.md): a line drawn across the
+   title before the card peels away. Deliberately a CSS keyframe, not a Framer
+   mount animation — Layout's <AnimatePresence initial={false}> propagates through
+   the presence context and suppresses descendants' mount transitions, so a
+   Framer `initial`→`animate` here would snap straight to its end state. */
+@keyframes strike-draw {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.strike-draw {
+  transform-origin: left center;
+  animation: strike-draw 165ms linear forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .strike-draw { animation: none; transform: scaleX(1); }
+}
+
+/* Colour's "mark" axis (micro-interactions-color-prd.md): the folder-derived accent
+   strip is DRAWN on like a line (top-down) when a note gains a colour, and ERASED
+   (bottom-up) before the new one draws when it changes. CSS keyframes rather than a
+   Framer mount animation, for the same presence-context reason as .strike-draw, and
+   because this can run on every card in a folder at once — a compositor-only
+   transform is the cheapest thing that can. `--accent-delay` carries the capped
+   stagger for a batched folder recolour. */
+@keyframes accent-draw {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+@keyframes accent-erase {
+  from { transform: scaleY(1); }
+  to { transform: scaleY(0); }
+}
+/* The tapered end applies ONLY while the strip is being drawn or erased: it softens
+   the moving tip so the stroke flows rather than a hard line extending. At rest the
+   strip is a solid, square-ended colour code — a permanent fade reads as an effect
+   for its own sake and pulls the eye to the bottom of every card for no reason.
+   Durations come from motion.ts via the inline --accent-*-ms variables, so the
+   timings the code reasons about (the erase doubles as the colour-handoff delay)
+   can never drift from the ones that actually play; the fallbacks here only apply
+   if a strip somehow renders without them. */
+.accent-draw,
+.accent-erase {
+  -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
+}
+.accent-draw {
+  transform-origin: top center;
+  animation: accent-draw var(--accent-draw-ms, 380ms) var(--ease-follow) var(--accent-delay, 0ms) both;
+}
+.accent-erase {
+  transform-origin: bottom center;
+  animation: accent-erase var(--accent-erase-ms, 240ms) var(--ease-follow) var(--accent-delay, 0ms) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .accent-draw, .accent-erase { animation: none; transform: none; }
+}
+
+/* Create's "arrive" axis (micro-interactions-create-prd.md): a newly-composed note
+   is held out of the list until it has real content, then its card animates in at
+   the top while siblings make room. CSS keyframe (not Framer `initial`) because
+   Layout's <AnimatePresence initial={false}> suppresses descendant mount animations. */
+@keyframes card-arrive {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+.card-arrive { animation: card-arrive var(--card-arrive-ms, 420ms) var(--ease-follow) both; }
+@media (prefers-reduced-motion: reduce) {
+  .card-arrive { animation: none; }
+}
+
+/* ── Undo: the exit, played backwards ────────────────────────────────────────
+   Clicking Undo on a toast rewinds the animation that removed the card, so the
+   action is literally taken back rather than just reversed in the database. Each
+   keyframe below is the time-mirror of its exit in NoteCard: same beats, opposite
+   order, same wall-clock, on the mirrored easing curve (the exit's --ease-end
+   becomes --ease-end-reversed). Keyframes rather than
+   Framer `initial`→`animate` for the usual reason — Layout's
+   <AnimatePresence initial={false}> suppresses descendant mount animations.
+
+   `--undo-delay` carries the capped per-card stagger for a BULK undo, mirroring
+   the bulk exit's own stagger; it is 0ms for a single card. */
+
+/* Delete, reversed. Forward: strike (165ms) → hold (100ms) → peel (265ms).
+   Backward: un-peel (265ms) → hold (100ms) → the strike retracts (165ms). */
+@keyframes card-unpeel {
+  from { opacity: 0; transform: translateY(12px) rotate(3deg); }
+  to   { opacity: 1; transform: none; }
+}
+.card-unpeel {
+  animation: card-unpeel 265ms var(--ease-end-reversed) var(--undo-delay, 0ms) both;
+}
+/* The line was drawn left→right, so rewinding pulls its right end back to the left —
+   same origin, scale running the other way. `both` holds it at full width through the
+   un-peel and the hold, so the card lands still struck out and only then clears. */
+@keyframes strike-erase {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+.strike-erase {
+  transform-origin: left center;
+  animation: strike-erase 165ms linear calc(var(--undo-delay, 0ms) + 365ms) both;
+}
+
+/* Archive, reversed. Forward: recede over 235ms while opacity holds, then a 90ms
+   fade at the very end. Backward: the 90ms fade first (0–30%), then the card grows
+   and re-saturates back out of the canvas over the remaining 235ms. */
+@keyframes card-unrecede {
+  0%    { opacity: 0;    transform: scale(0.95); filter: saturate(0.9); }
+  20%   { opacity: 0.67; transform: scale(0.95); filter: saturate(0.9); }
+  30%   { opacity: 1; }
+  100%  { transform: scale(1); filter: saturate(1); }
+}
+.card-unrecede {
+  animation: card-unrecede 400ms var(--ease-end-reversed) var(--undo-delay, 0ms) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-unpeel, .card-unrecede { animation: none; }
+  .strike-erase { animation: none; transform: scaleX(0); }
+}
+
+/* ── Locking a note ──────────────────────────────────────────────────────────
+   Two halves of one gesture (see useLockFx in noteFx.tsx): the contents blur into
+   disappearance, then the locked state fades in where they were. The blur is what
+   makes it read as "sealed" rather than "cleared" — text going out of focus is the
+   universal picture of something you are no longer allowed to read. */
+@keyframes note-lock-blur {
+  from { opacity: 1; filter: blur(0px); transform: scale(1); }
+  to   { opacity: 0; filter: blur(10px); transform: scale(0.985); }
+}
+.note-locking {
+  /* `forwards` so the contents STAY gone while the refresh is in flight — without
+     it they would snap back at the end of the animation and lock a second time. */
+  animation: note-lock-blur var(--lock-blur-ms, 420ms) var(--ease-follow) forwards;
+  pointer-events: none;
+}
+
+@keyframes note-lock-reveal {
+  from { opacity: 0; filter: blur(6px); transform: translateY(4px); }
+  to   { opacity: 1; filter: blur(0px); transform: none; }
+}
+.lock-reveal {
+  animation: note-lock-reveal var(--lock-reveal-ms, 320ms) var(--ease-follow) both;
+}
+
+/* The onboarding tour's lock loop plays this in BOTH directions.
+   Sealing already had its own animation (note-lock-blur, applied via .note-locking).
+   Unlocking never did: in the app the contents come back on a fresh render nobody is
+   watching closely, so a pop was invisible. In a loop that runs every few seconds it
+   is the most obvious thing on screen. This reuses the padlock's existing reveal
+   keyframe rather than inventing a second one, so both directions of the loop are
+   the app's own motion. */
+.preview-unlocking .note-preview {
+  animation: note-lock-reveal var(--lock-reveal-ms, 320ms) var(--ease-follow) both;
+}
+
+/* Chips arriving on the organising step.
+   The step adds the folder, then the tags one at a time, by handing the card a note
+   whose folder and tags grow between renders — so the chips and the accent stripe are
+   the card's own, drawn the way it draws them for real. All that is missing is an
+   entrance: a chip that simply exists on the next frame reads as a glitch rather than
+   as something being applied. A CSS animation on mount gives each one its own,
+   whenever it happens to arrive. */
+@keyframes preview-chip-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.9); }
+  to   { opacity: 1; transform: none; }
+}
+.preview-organising .chip-scrim {
+  animation: preview-chip-in 260ms var(--ease-follow) both;
+}
+
+/* And the seal closes the card WHILE the text fades, rather than after it.
+   In the app, locking fades the contents out and the card collapses a moment later
+   inside a list refresh — invisible there, because the whole list is moving anyway.
+   Watched on a loop in a static pane, the two beats read as a fade followed by a
+   snap. Collapsing the same element that is fading turns them into one gesture: the
+   card closes over its contents.
+   The blur animation has to be repeated here because the shorthand replaces it. */
+@keyframes preview-seal-collapse {
+  from { max-height: 260px; }
+  to   { max-height: 0; }
+}
+.preview-sealing .note-locking {
+  animation:
+    note-lock-blur var(--lock-blur-ms, 420ms) var(--ease-follow) forwards,
+    preview-seal-collapse var(--lock-blur-ms, 420ms) var(--ease-follow) forwards;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* No blur, no travel — but the two states still cross-fade, so the swap is never
+     an unexplained hard cut. */
+  @keyframes note-lock-blur {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+  }
+  @keyframes note-lock-reveal {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+}

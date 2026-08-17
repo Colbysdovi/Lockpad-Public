@@ -1,0 +1,32 @@
+# Optional Tailscale sidecar overlay — gives Lockpad its own tailnet node and
+# serves it over HTTPS on your tailnet only (never the public internet).
+#
+# Requires TS_AUTHKEY in .env (generate at login.tailscale.com → Settings → Keys).
+# Deploy with:
+#   docker compose -f docker-compose.yml -f docker-compose.tailscale.yml up -d
+#
+# The sidecar joins the internal network and `tailscale serve` proxies HTTPS 443
+# to the frontend container. Set COOKIE_SECURE=true in .env once this is on.
+
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    hostname: lockpad # → https://lockpad.<your-tailnet>.ts.net
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:?set TS_AUTHKEY in .env}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/serve.json
+      TS_EXTRA_ARGS: --reset
+    volumes:
+      - tailscale_state:/var/lib/tailscale
+      - ./tailscale/serve.json:/config/serve.json:ro
+    cap_add:
+      - net_admin
+    networks:
+      - lockpad_internal
+    depends_on:
+      - frontend
+    restart: unless-stopped
+
+volumes:
+  tailscale_state:

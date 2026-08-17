@@ -1,0 +1,13 @@
+{
+  "//": "Tailscale serve config for the optional sidecar container. Serves the frontend over HTTPS on your tailnet only (never funnel/public). Mount at /config/serve.json.",
+  "TCP": {
+    "443": { "HTTPS": true }
+  },
+  "Web": {
+    "${TS_CERT_DOMAIN}:443": {
+      "Handlers": {
+        "/": { "Proxy": "http://frontend:80" }
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- No external resources: no CDN fonts/scripts. Everything is bundled. -->
+    <meta name="referrer" content="no-referrer" />
+    <!-- Self-hosted Lockpad padlock favicon (SVG) + iOS home-screen icon. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Browser UI tint. Matched to the warm cream/espresso canvas per theme (the
+         old #006dff was a stray blue that clashed with the terracotta palette). -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F2EAE0" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#241C17" />
+    <!-- Installable PWA: opens chrome-less from the home screen. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- black-translucent lets the app draw edge-to-edge under the iOS status bar in
+         standalone mode, so the header's safe-area-top inset is actually honoured. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Lockpad" />
+    <title>Lockpad</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,86 @@
+# Lockpad — self-hosted, privacy-first notes. PREBUILT-IMAGE edition.
+#
+# Identical topology to docker-compose.yml, but pulls ready-made images from
+# GHCR instead of building from source. This is the file non-developers should
+# use: no build toolchain, no source checkout required — just Docker and this
+# one file. `install.sh` writes the .env for you.
+#
+# Postgres is intentionally NOT given a `ports:` mapping, so it is unreachable
+# from the host or the network — only `backend` can talk to it. The backend
+# applies pending DB migrations automatically on startup (see its entrypoint),
+# so there is no separate migrate step to remember.
+#
+#   REGISTRY  override the image source (default: ghcr.io/colbysdovi)
+#   TAG       override the image tag    (default: latest)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - lockpad_internal
+    # NO ports: mapping — Postgres is never exposed outside the internal network.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: ${REGISTRY:-ghcr.io/colbysdovi}/lockpad-backend:${TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      BACKEND_PORT: ${BACKEND_PORT:-4000}
+      LOG_DIR: ${LOG_DIR:-/var/log/lockpad}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      NODE_ENV: production
+      # App auth — empty APP_PASSWORD disables auth.
+      APP_PASSWORD: ${APP_PASSWORD:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      # The frontend's HOST binding, passed in so the backend can SEE it. It is a
+      # Docker port mapping, applied by the daemon before any of our code runs, so
+      # the app has no other way to know whether it is reachable beyond this machine
+      # — and "reachable on the LAN with no password set" is the one configuration
+      # pair that quietly undoes the app's privacy promise. The backend warns about
+      # it at startup and in the app itself.
+      FRONTEND_BIND: ${FRONTEND_BIND-127.0.0.1:}
+      # Behind nginx every request arrives from the frontend container; this lets the
+      # rate limiter tell clients apart. Safe here only because the backend publishes
+      # no host port — nothing but the frontend container can reach it.
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    volumes:
+      - ./logs:/var/log/lockpad
+    networks:
+      - lockpad_internal
+    expose:
+      - "${BACKEND_PORT:-4000}"
+
+  frontend:
+    image: ${REGISTRY:-ghcr.io/colbysdovi}/lockpad-frontend:${TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - lockpad_internal
+    # Private by default (localhost only). Set FRONTEND_BIND= (empty) in .env to
+    # bind 0.0.0.0 for LAN/tailnet access, or "<ip>:" for a specific interface.
+    ports:
+      - "${FRONTEND_BIND-127.0.0.1:}${FRONTEND_PORT:-5173}:80"
+
+networks:
+  lockpad_internal:
+    driver: bridge
+
+volumes:
+  pgdata:

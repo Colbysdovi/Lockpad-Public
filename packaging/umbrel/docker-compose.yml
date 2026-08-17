@@ -1,0 +1,65 @@
+# Lockpad for Umbrel (umbrelOS).
+#
+# Submit as a PR to https://github.com/getumbrel/umbrel-apps (folder: lockpad/).
+# Umbrel's app_proxy fronts the frontend container and handles auth/exposure.
+#
+# SECRETS — before submitting, wire deterministic secrets so each install is
+# unique. Umbrel convention: add an `exports.sh` in the app-store repo that
+# derives them from $APP_SEED, e.g.
+#     export APP_LOCKPAD_POSTGRES_PASSWORD="$(derive_entropy "lockpad-postgres")"
+#     export APP_LOCKPAD_SESSION_SECRET="$(derive_entropy "lockpad-session")"
+# then reference those below. The ${...:-fallback} defaults keep this file
+# runnable for local testing; do NOT ship the fallbacks to production.
+#
+# The frontend's nginx proxies /api to the service literally named `backend` —
+# keep that name.
+
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: lockpad_frontend_1
+      APP_PORT: 80
+
+  postgres:
+    image: postgres:16-alpine
+    restart: on-failure
+    stop_grace_period: 1m
+    environment:
+      POSTGRES_USER: lockpad
+      POSTGRES_PASSWORD: ${APP_LOCKPAD_POSTGRES_PASSWORD:-change-me-postgres}
+      POSTGRES_DB: lockpad
+    volumes:
+      - ${APP_DATA_DIR}/data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lockpad -d lockpad"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: ghcr.io/colbysdovi/lockpad-backend:v1.0.0
+    restart: on-failure
+    stop_grace_period: 1m
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://lockpad:${APP_LOCKPAD_POSTGRES_PASSWORD:-change-me-postgres}@postgres:5432/lockpad?schema=public
+      BACKEND_PORT: 4000
+      LOG_DIR: /var/log/lockpad
+      CORS_ORIGINS: http://localhost:5173
+      NODE_ENV: production
+      APP_PASSWORD: ${APP_LOCKPAD_APP_PASSWORD:-}
+      SESSION_SECRET: ${APP_LOCKPAD_SESSION_SECRET:-change-me-session-secret}
+      COOKIE_SECURE: "false"
+    volumes:
+      - ${APP_DATA_DIR}/data/logs:/var/log/lockpad
+
+  frontend:
+    image: ghcr.io/colbysdovi/lockpad-frontend:v1.0.0
+    restart: on-failure
+    stop_grace_period: 1m
+    depends_on:
+      - backend

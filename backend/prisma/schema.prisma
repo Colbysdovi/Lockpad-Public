@@ -1,0 +1,169 @@
+// Lockpad Prisma schema — transcribed from spec §2.
+// The full-text search tsvector column (`content_tsv`) is added via a raw-SQL
+// migration (see migrations/*/migration.sql) because Prisma cannot express a
+// generated tsvector column natively. It is declared here as Unsupported so the
+// client is aware of it but never selects it directly.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Note {
+  id               String    @id @default(cuid())
+  title            String
+  content          Json // TipTap document JSON
+  color            String? // one of the fixed note-color keys (see schemas.ts `noteColor`); null = no color
+  folderId         String?
+  isLocked         Boolean   @default(false)
+  encryptedContent Bytes? // populated only when isLocked = true; content is redacted when locked
+  // Crypto metadata for locked notes (KDF params, salt, iv) — never the key/plaintext.
+  cryptoMeta       Json?
+  archivedAt       DateTime?
+  deletedAt        DateTime? // soft delete
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  folder    Folder?    @relation(fields: [folderId], references: [id])
+  tags      NoteTag[]
+  linksFrom NoteLink[] @relation("SourceNote")
+  linksTo   NoteLink[] @relation("TargetNote")
+  pins      PinnedNote[]
+  images    NoteImage[]
+
+  @@index([deletedAt, archivedAt, updatedAt, id])
+  @@index([folderId])
+}
+
+// Per-page pins (spec: note hover-state §2). `scope` identifies the list view a
+// note is pinned within — "all", "folder:<id>", or "tag:<id>" — so pinning is
+// independent per page. Ordering within a page's Pinned section is pinnedAt DESC.
+model PinnedNote {
+  noteId   String
+  scope    String
+  pinnedAt DateTime @default(now())
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, scope])
+  @@index([scope, pinnedAt])
+}
+
+// Images pasted, dropped or picked into a note's body. The bytes live in Postgres
+// rather than on a disk volume so that a self-hoster's existing backup (a plain
+// `pg_dump`) already contains their pictures, and so deleting a note takes its
+// images with it in the same transaction — no volume to mount, no orphan files to
+// find later. Size is capped at the API layer (see config.maxImageBytes).
+//
+// A LOCKED NOTE HAS NO ROWS HERE. Locking folds each image into the note's document
+// as a data URI, encrypts the whole thing client-side, and deletes these rows — so a
+// locked note's pictures are exactly as unreadable as its text, with nothing left on
+// disk in a weaker state. Unlocking puts them back. See routes/lock.ts.
+//
+// `width`/`height` are the pixel dimensions reported by the browser that uploaded
+// the file. They are display hints (they let a page reserve the right space before
+// the bytes arrive), never trusted for anything else.
+model NoteImage {
+  id        String   @id @default(cuid())
+  noteId    String
+  mime      String // one of the allowlisted image types (see lib/noteImages.ts)
+  width     Int
+  height    Int
+  size      Int // bytes, denormalised so a listing never has to read the blob
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([noteId])
+}
+
+model Folder {
+  id             String   @id @default(cuid())
+  name           String
+  color          String? // hex color for the folder chip/icon (e.g. #a7f3d0)
+  parentFolderId String?
+  parentFolder   Folder?  @relation("FolderTree", fields: [parentFolderId], references: [id])
+  children       Folder[] @relation("FolderTree")
+  notes          Note[]
+}
+
+model Tag {
+  id    String    @id @default(cuid())
+  name  String    @unique
+  notes NoteTag[]
+}
+
+model NoteTag {
+  noteId String
+  tagId  String
+  note   Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, tagId])
+}
+
+model NoteLink {
+  sourceNoteId String
+  targetNoteId String
+  source       Note @relation("SourceNote", fields: [sourceNoteId], references: [id], onDelete: Cascade)
+  target       Note @relation("TargetNote", fields: [targetNoteId], references: [id], onDelete: Cascade)
+
+  @@id([sourceNoteId, targetNoteId])
+}
+
+// ── Session revocation ───────────────────────────────────────────────────────
+//
+// Sessions are signed JWTs and the server deliberately stores none of them, so
+// there is nothing to delete when one needs to be taken away. These two tiny tables
+// are the exception that makes revocation possible without giving that design up:
+// they record only what has been TAKEN AWAY, never what has been issued. An empty
+// pair of tables is the normal state.
+
+// One row per individually revoked session. `expiresAt` is the token's own expiry:
+// past it the token is refused anyway, so the row is dead weight and gets swept.
+model RevokedSession {
+  jti       String   @id
+  revokedAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+// "Sign out everywhere else": one row, rewritten each time. Every session issued
+// before `notBefore` is refused, except the one that asked — which is what makes it
+// "everywhere ELSE" rather than a blunt secret rotation that logs the operator out
+// of the very device they are holding.
+model SessionEpoch {
+  id         Int      @id @default(1)
+  notBefore  DateTime
+  exemptJti  String?
+  updatedAt  DateTime @updatedAt
+}
+
+// Whether this instance has been through first-run onboarding. One row, forever —
+// `id` defaults to 1 and is the primary key, so a second row cannot be written even
+// by mistake.
+//
+// It lives on the SERVER, not in localStorage, for a specific reason: one Lockpad
+// instance is reached from several devices (laptop, phone, whatever is to hand over
+// the tailnet). A browser-local flag would mean every new device believed it was
+// seeing a brand-new install and offered the welcome flow again to someone who has
+// been using their own notes for months.
+//
+// `onboardedAt` null means "not yet" — the wizard is owed. A timestamp means the
+// wizard was completed OR skipped; both are equally final, because the question this
+// answers is "has this person been shown the door", not "did they walk through it".
+// `seededAt` is tracked separately from `onboardedAt` because they answer different
+// questions at different moments. Seeding happens when the flow STARTS; onboarding
+// completes when the user finishes or skips. Collapsing them into one field would
+// mean a reload part-way through the wizard looked like a fresh first run and wrote
+// a second set of example notes into the library.
+model AppState {
+  id           Int       @id @default(1)
+  onboardedAt  DateTime?
+  seededAt     DateTime?
+  updatedAt    DateTime  @updatedAt
+}
