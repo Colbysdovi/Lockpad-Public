@@ -1,4 +1,4 @@
-# Changelog
+# 📜 Changelog
 
 What changed in each release of Lockpad, written for the person running it.
 
@@ -7,7 +7,7 @@ difference to anyone using the app, it is not in here.
 
 ---
 
-## v1.0.0 — "Ganvié" · 2026-08-17
+## 🔖 v1.0.0 — "Ganvié" · 2026-08-17
 
 The first release. Lockpad is a notes app that runs entirely on hardware you own: no
 account, no vendor server, no telemetry, and no outbound network requests in normal
@@ -16,7 +16,7 @@ operation.
 Since this is the first version there is nothing to compare it to, so what follows is
 what the app does.
 
-### Writing
+### 📝 Writing
 
 - **A real rich-text editor.** Headings, bold, italic, strikethrough, highlight, bullet
   and numbered lists, checklists, quotes and code blocks.
@@ -28,7 +28,7 @@ what the app does.
 - **Keyboard shortcuts**, with a dialog that lists them (`⌘⇧S`) rather than expecting you
   to memorise them.
 
-### Organising
+### 📂 Organising
 
 - **Folders that nest.** A folder can live inside another folder, and each one can carry
   its own colour.
@@ -44,7 +44,7 @@ what the app does.
 - **Tidy up.** Settings can delete folders and tags nothing is using any more, so the
   sidebar does not silently accumulate.
 
-### Not losing things
+### 🔍 Not losing things
 
 - **Archive and trash are separate.** Archiving files something away; deleting puts it in
   the trash, where it stays until you empty it.
@@ -59,7 +59,7 @@ what the app does.
 - **Import from elsewhere.** Google Keep, Evernote and Obsidian, with a preview of what
   will be created before anything is written.
 
-### Privacy, concretely
+### 🔒 Privacy, concretely
 
 - **Nothing leaves your hardware.** No analytics, no telemetry, no error reporting, no
   CDN-hosted fonts or scripts, no external APIs.
@@ -77,7 +77,7 @@ what the app does.
   system to leak.
 - **Sign other devices out** from Settings, without changing your password.
 
-### Running it
+### 🐳 Running it
 
 - **One command to install it**, or build it from source if you would rather read the
   code on the way past.
@@ -95,7 +95,7 @@ what the app does.
 - **Settings tells you which version you are running**, and links to the release notes so
   you can see what a newer one contains before deciding to update.
 
-### Known limits
+### 🚧 Known limits
 
 - Single user by design. There is no multi-user mode, and adding one would be a change in
   what the product is rather than a setting.
@@ -124,19 +124,19 @@ what the app does.
      name, so v1.0.1 is still "Ganvié".
      ─────────────────────────────────────────────────────────────────────────────
 
-## vX.Y.Z — "Name" · YYYY-MM-DD
+## 🔖 vX.Y.Z — "Name" · YYYY-MM-DD
 
 One or two sentences on what this release is for.
 
-### Added
+### 🆕 Added
 - ...
 
-### Improved
+### 📈 Improved
 - ...
 
-### Fixed
+### 🩹 Fixed
 - ...
 
-### Known limits
+### 🚧 Known limits
 - ...
 -->

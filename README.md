@@ -1,4 +1,4 @@
-# Lockpad
+# 📓 Lockpad
 
 Self-hosted, privacy-first notes. Runs entirely on hardware you own, and makes
 **zero outbound network requests** — no analytics, no telemetry, no CDN fonts or
@@ -20,7 +20,7 @@ locking one.
 **Current release: v1.0.0 "Ganvié".** What is in it, and what changed since:
 [CHANGELOG.md](CHANGELOG.md).
 
-## Install
+## 📦 Install
 
 **Never used a terminal?** [SETUP.md](SETUP.md) walks through every install path step by
 step, and [FAQ.md](FAQ.md) answers the questions that come up afterwards. The rest of this
@@ -47,14 +47,7 @@ docker compose -f docker-compose.public.yml up -d
 
 **Settings → About** shows which version you're running and links to what changed.
 
-### From a home-server app store
-
-Manifests for **CasaOS**, **Umbrel** and **Runtipi** live in
-[`packaging/`](packaging/) — see [`packaging/README.md`](packaging/README.md).
-[SETUP.md](SETUP.md) says which of the three can install Lockpad today and which are still
-waiting on a store listing.
-
-### From source
+### 🧱 From source
 
 ```bash
 git clone https://github.com/Colbysdovi/Lockpad-Public.git lockpad
@@ -68,7 +61,7 @@ docker compose up -d
 
 ![A note open in the editor, with the formatting toolbar, folder and tag pickers above the body, and a lock control in the header.](docs/screenshots/note-open.png)
 
-## What it does
+## ✨ What it does
 
 - **Rich text that stays out of the way** — headings, lists, checklists, quotes,
   code blocks with syntax highlighting, highlighter pens, images, and dividers.
@@ -85,7 +78,7 @@ docker compose up -d
 - **Yours offline** — installable as a web app, keyboard-driven, and equally usable
   on a phone.
 
-## Privacy
+## 🔒 Privacy
 
 - **No outbound requests.** Fonts, icons and syntax highlighting are all bundled.
   Nothing is fetched from a CDN, and there is no analytics or telemetry of any kind.
@@ -99,7 +92,7 @@ docker compose up -d
   you so at startup and in **Settings → Security**.
 - **Logs stay on your machine**, in a local volume.
 
-## Reaching it from your phone
+## 📱 Reaching it from your phone
 
 Don't port-forward. Put the machine on a [Tailscale](https://tailscale.com) network
 and use `serve` — you get valid HTTPS on a private name, with nothing exposed to the
@@ -123,7 +116,7 @@ devices may connect with an ACL:
 
 A ready-made sidecar is included: see `docker-compose.tailscale.yml`.
 
-## Backups
+## 💾 Backups
 
 Self-hosting means the backups are yours to keep.
 
@@ -137,7 +130,7 @@ export the entire library as a single JSON file from **Settings → Data**, whic
 the portable copy — though note that locked notes can't be exported while locked,
 since the server only holds their ciphertext.
 
-## Architecture
+## 🧩 Architecture
 
 ```
 ┌─────────────┐     ┌───────────┐     ┌────────────┐
@@ -157,7 +150,7 @@ since the server only holds their ciphertext.
   startup.
 - **postgres** — the official image, on an internal network with no host port.
 
-## Developing
+## 💻 Developing
 
 ```bash
 cd backend  && npm install && npm run dev:preview   # embedded Postgres, seeded demo library
@@ -171,12 +164,12 @@ nothing left behind. Note that it re-seeds from scratch on every restart.
 Run the backend test suite with `npm test` in `backend/`, and typecheck either side
 with `npx tsc --noEmit`.
 
-## Contributing & security
+## 🤝 Contributing & security
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). For anything security-related, please read
 [SECURITY.md](SECURITY.md) and report privately rather than opening an issue.
 
-## No warranty
+## 🚨 No warranty
 
 Lockpad is software you run yourself, not a service someone operates for you. There is no
 company behind it, no uptime commitment, no support contract and nobody on call. It is
@@ -185,12 +178,12 @@ applies in full.
 
 In practice that means two things worth saying plainly. **Your backups are yours to keep** —
 nobody else holds a copy of your notes, which is the entire point and also the catch; see
-[FAQ.md](FAQ.md#how-do-i-back-up-my-notes). And **a note you lock cannot be recovered
+[FAQ.md](FAQ.md#-how-do-i-back-up-my-notes). And **a note you lock cannot be recovered
 without its passphrase**, by you or by anyone else, because the key is derived from that
 passphrase and never leaves your browser. That is the feature behaving correctly, which is
 no comfort at all if you have lost the passphrase. Use a password manager.
 
-## License
+## 📄 License
 
 [GNU AGPL-3.0](LICENSE). You can run, modify and share Lockpad freely; if you run a
 modified version as a network service, the AGPL asks you to publish those changes.

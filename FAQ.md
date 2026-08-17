@@ -1,20 +1,20 @@
-# Questions, and what to do when something breaks
+# ❓ Questions, and what to do when something breaks
 
 Two halves. The first explains the one concept most people get stuck on. The second is
 the list of things that actually go wrong.
 
-- [What is Tailscale, and do I need it?](#what-is-tailscale-and-do-i-need-it)
-- [If something goes wrong](#if-something-goes-wrong)
-  - [The page will not load](#the-page-will-not-load)
-  - [I forgot my password](#i-forgot-my-password)
-  - [Why can't I lock a note?](#why-cant-i-lock-a-note)
-  - [How do I back up my notes?](#how-do-i-back-up-my-notes)
-  - [How do I update?](#how-do-i-update)
-- [Everything else](#everything-else)
+- [What is Tailscale, and do I need it?](#-what-is-tailscale-and-do-i-need-it)
+- [If something goes wrong](#-if-something-goes-wrong)
+  - [The page will not load](#-the-page-will-not-load)
+  - [I forgot my password](#-i-forgot-my-password)
+  - [Why can't I lock a note?](#-why-cant-i-lock-a-note)
+  - [How do I back up my notes?](#-how-do-i-back-up-my-notes)
+  - [How do I update?](#-how-do-i-update)
+- [Everything else](#-everything-else)
 
 ---
 
-## What is Tailscale, and do I need it?
+## 📡 What is Tailscale, and do I need it?
 
 **Short answer:** you need it if you want your notes when you are away from home. If
 Lockpad will only ever be used on your own wifi, skip it.
@@ -36,7 +36,7 @@ It is free for personal use, and setup is: make an account, install Tailscale on
 machine running Lockpad, install it on your phone and laptop, sign all of them into the
 same account.
 
-### The two words that matter: serve, not funnel
+### 🚨 The two words that matter: serve, not funnel
 
 Tailscale has two ways to put a web app on an address.
 
@@ -47,7 +47,7 @@ Lockpad uses `serve`, and only `serve`. That is not a default that could drift; 
 what makes the privacy claim true rather than aspirational. If you ever see `funnel` in a
 Lockpad instruction, something is wrong.
 
-### The connection does not depend on Tailscale staying up
+### 🔌 The connection does not depend on Tailscale staying up
 
 Worth knowing, because "I've added a dependency on someone else's service" is a fair
 worry. Tailscale is a *coordination* service: it introduces your devices to each other
@@ -66,7 +66,7 @@ if you ignore it: **node key expiry**. Disable key expiry on the Lockpad machine
 Tailscale admin console, or in a few months you will find yourself shut out for no visible
 reason.
 
-### Tightening it further, optional
+### 🔐 Tightening it further, optional
 
 Lockpad ships an example Tailscale ACL that restricts access to devices you have tagged,
 rather than every device on your tailnet. If you share a tailnet with family, this is
@@ -74,9 +74,9 @@ worth doing. See the Tailscale section of [DEPLOY.md](DEPLOY.md).
 
 ---
 
-## If something goes wrong
+## 🔧 If something goes wrong
 
-### The page will not load
+### 🔌 The page will not load
 
 In order, because each rules out the next:
 
@@ -104,7 +104,7 @@ In order, because each rules out the next:
    machine itself.** A machine can reach itself perfectly while being unreachable from
    everywhere else, and that failure looks exactly like everything working.
 
-### I forgot my password
+### 🔑 I forgot my password
 
 The honest answer is not a good one, and finding it out later is worse.
 
@@ -127,7 +127,7 @@ support" — genuinely unrecoverable. The note's contents are encrypted with a k
 from that passphrase and nothing else, and the server never had it. This is the feature
 working correctly, which is cold comfort. Put note passphrases in your password manager.
 
-### Why can't I lock a note?
+### 🔒 Why can't I lock a note?
 
 Almost certainly because you are reading the app over plain `http://`.
 
@@ -145,7 +145,7 @@ Two ways to get a secure context, either of which fixes it:
 
 This is also why the install offers those two paths rather than plain HTTP over the LAN.
 
-### How do I back up my notes?
+### 💾 How do I back up my notes?
 
 Nobody else is holding a copy. That is the point, and it is also the catch: this one is
 genuinely yours to do.
@@ -176,19 +176,16 @@ Run it nightly rather than remembering to. On Linux or a NAS task scheduler:
 Then copy those files somewhere that is not the same machine. A backup that lives only on
 the disk that dies with it is not a backup.
 
-### How do I update?
+### 🔄 How do I update?
 
 **Export your notes first** (Settings → Data). Every time. It takes ten seconds and it is
 the difference between a bad update being an annoyance and being a loss.
 
-**If you installed with the script or from source**, in the install directory:
+In the directory Lockpad was installed into:
 
 ```bash
 docker compose pull && docker compose up -d
 ```
-
-**If you installed through CasaOS, Umbrel or Runtipi**, use the platform's own update
-button.
 
 Database migrations run themselves when the app starts. There is no separate migration
 command to remember, and if you find an instruction telling you to run one, it is out of
@@ -199,7 +196,7 @@ date.
 
 ---
 
-## Everything else
+## 💬 Everything else
 
 **Can I use it on my phone?** Yes, in the phone's browser, over Tailscale or on your home
 network. There is no native app. Lockpad ships a web manifest, so you can add it to your

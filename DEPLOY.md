@@ -1,4 +1,4 @@
-# Self-hosting Lockpad on the UGREEN NAS
+# 📦 Self-hosting Lockpad on the UGREEN NAS
 
 Three containers via Docker Compose — `postgres`, `backend` (Fastify + Prisma),
 `frontend` (static SPA served by nginx). Postgres is **never** published outside
@@ -8,7 +8,7 @@ exposed to the public internet.
 Run every command below **on the NAS** (UGOS Pro → Docker, or over SSH). This
 machine (where the code was written) has no access to your tailnet.
 
-## 1. First-time setup
+## 🧰 1. First-time setup
 
 ```bash
 # Clone the repo onto the NAS (replace with wherever you host it)
@@ -33,7 +33,7 @@ Edit `.env`:
 
 `.env` is gitignored and never leaves the NAS.
 
-## 2. Build, run, migrate
+## 🐳 2. Build, run, migrate
 
 ```bash
 docker compose build
@@ -59,7 +59,7 @@ start. If the backend cannot migrate, it exits and says why in its logs. Read th
 - Postgres has **no** host port mapping — only `backend` can reach it.
 - Data lives in the `pgdata` Docker volume and survives rebuilds.
 
-## 3. Expose it
+## 📡 3. Expose it
 
 **LAN / tailnet-IP (simple):** set `FRONTEND_BIND=` (empty) in `.env` and
 `docker compose up -d`. Reachable at `http://<nas-ip>:5173`. Only do this once
@@ -81,7 +81,7 @@ so only your own devices can reach the node.
 **Running both paths at once is normal**, and usually what you want: the tailnet URL
 from outside the house, the LAN URL from inside (§9). They coexist.
 
-### Pin your compose files once, so a later command cannot silently drop one
+### 🚨 Pin your compose files once, so a later command cannot silently drop one
 
 Every overlay you add is a flag you have to repeat on *every* later `docker compose`
 command in this directory. This is the sharpest edge in the whole setup, because
@@ -111,7 +111,7 @@ Explicit `-f` flags still work and take precedence over `COMPOSE_FILE`. If you p
 them, the rule is simply that the full set must appear on every command, not just the
 first one.
 
-## 4. Updating after new code is pushed to GitHub
+## 🔄 4. Updating after new code is pushed to GitHub
 
 Back up first — one command, and it is the difference between a bad update costing
 you an evening and costing you your notes (§5).
@@ -136,7 +136,7 @@ Which version you end up on is visible in the app under **Settings → About**. 
 build from source reports itself as a development build rather than a release
 number, which is correct — there is no tag behind it.
 
-## 5. Backups
+## 💾 5. Backups
 
 A nightly `pg_dump` script is included:
 
@@ -148,7 +148,7 @@ A nightly `pg_dump` script is included:
 
 Restore with `./scripts/restore.sh backups/lockpad-<timestamp>.sql.gz`.
 
-## 6. Health check
+## ✅ 6. Health check
 
 ```bash
 docker compose ps
@@ -173,7 +173,7 @@ curl -I https://lockpad.<your-tailnet>.ts.net/     # tailnet path (§3) → 200
 Check whichever paths you have turned on, and check them after any change that
 recreated the frontend.
 
-## 7. Security controls
+## 🔐 7. Security controls
 
 Three things guard the server itself, on top of the note-level encryption.
 
@@ -206,7 +206,7 @@ curl -X POST http://localhost:5173/api/auth/session/revoke \
 > small tables that record revoked sessions. It runs automatically the first time
 > the updated backend starts — there is nothing to type. Back up first (§5).
 
-## 8. Recovery — getting back in when Tailscale is unavailable
+## 🔧 8. Recovery — getting back in when Tailscale is unavailable
 
 Routing access through a tailnet adds a dependency, and it is worth being precise
 about how much of one. Tailscale is a **coordination** service, not the path your
@@ -239,7 +239,7 @@ in the admin console, open **Machines → `lockpad` → ⋯ → Disable key expi
 node key expires 180 days after login by default, and when it does the node drops
 off the tailnet with no warning and no LAN fallback if you closed that port.
 
-### The escape hatch
+### 🚪 The escape hatch
 
 You are never actually locked out, because SSH is a completely independent path —
 it does not know or care that Tailscale exists. From any machine on the same LAN
@@ -265,7 +265,7 @@ The point of writing this down is that the moment you need it is exactly the mom
 you cannot reach the machine that has the notes explaining it. Keep a copy somewhere
 that does not depend on Lockpad being up.
 
-## 9. Direct HTTPS on your own network (no Tailscale client needed)
+## 📡 9. Direct HTTPS on your own network (no Tailscale client needed)
 
 §3's tailnet node solves reaching your notes from anywhere. It is a poor fit for
 the machine sitting on the same desk as the NAS, where it puts a third party's
@@ -283,7 +283,7 @@ So terminate TLS on the NAS with a certificate you issue yourself. No public CA 
 involved, nothing about your network is published to a certificate transparency
 log, and the result is a normal trusted-padlock HTTPS origin on your LAN.
 
-### Issue the certificate
+### 🔑 Issue the certificate
 
 On any machine you already trust (your laptop is the natural choice — the CA's
 private key should live somewhere you control, not on the NAS). [mkcert][mkcert]
@@ -309,7 +309,7 @@ scp lockpad.pem lockpad-key.pem <nas-user>@<nas-ip>:<path-to-lockpad>/certs/
 `certs/` is gitignored — it holds a private key, and that key must never reach a
 repository, public or private.
 
-### Turn it on
+### 🐳 Turn it on
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.lan-tls.yml up -d
@@ -343,7 +343,7 @@ cross-origin request.
 > changes. Rebuilds (`--build`) recreate the container anyway, so this only bites
 > when the config is the only thing that changed.
 
-### Trust the certificate on your other devices
+### 📱 Trust the certificate on your other devices
 
 `mkcert -install` covered the machine that issued it. Everything else needs the CA
 certificate — **the CA, not the server certificate**. Find it with `mkcert -CAROOT`;
@@ -359,7 +359,7 @@ earth, and it should never leave the machine that made it.
 - **Firefox** on any platform keeps its own trust store: Settings → Privacy & Security
   → View Certificates → Authorities → Import.
 
-### Verify
+### ✅ Verify
 
 ```bash
 curl -sS -o /dev/null -w 'tls-verify=%{ssl_verify_result} http=%{http_code}\n' \
