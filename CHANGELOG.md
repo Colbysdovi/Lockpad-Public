@@ -28,18 +28,31 @@ what the app does.
 - **Pictures in your notes.** Paste or insert an image and it lives in the note. Large
   photographs are downscaled in your browser before they are ever sent, so a phone
   snapshot does not become a 12MB note.
-- **Notes can point at each other.** Link one note to another and follow it; the note you
-  linked to shows the connection back, so you can find your way in either direction.
+- **Notes can point at each other.** Link one note to another and it shows up as a chip
+  right in your sentence — its own icon and colour, the linked note's title, clickable —
+  not a stray character with the connection hidden elsewhere. The note you linked to
+  shows the connection back, so you can find your way in either direction.
+- **Paste a link to a site Lockpad recognises** — YouTube, Figma, LinkedIn, Google Maps
+  and others — **and it renders as a small styled card** with that provider's icon and
+  label, instead of a bare URL. It's computed entirely from the link text itself; nothing
+  is fetched from the site, so this costs nothing against the zero-outbound-request
+  promise.
+- **Reorder a note by dragging its pieces.** Paragraphs, headings, list items, checklist
+  items, quotes and code blocks all pick up a drag handle on hover (a long-press on
+  mobile), so rearranging a note no longer means cutting and pasting text by hand. It
+  undoes like any other edit.
+- **Strikethrough, inline code, and a horizontal rule now have a toolbar button or
+  slash-command entry** — no more typing the exact markdown shortcut from memory to
+  reach them.
 - **A quick-note bar that lets you keep going.** Type at the bottom of any list and
   press Enter: the note is created and you stay where you are, ready for the next
   thought. `⌘Enter` creates it and opens it. `Shift+Enter` adds a line without saving.
-- **Keyboard shortcuts**, with a dialog that lists them (`⌘⇧S`) rather than expecting you
-  to memorise them.
+- **Keyboard shortcuts** for search (`⌘K`), a new note (`⌘N`) and the sidebar (`⌘\`),
+  with a dialog in the header that lists them rather than expecting you to memorise them.
 
 ### 📂 Organising
 
-- **Folders that nest.** A folder can live inside another folder, and each one can carry
-  its own colour.
+- **Folders, each with its own colour.** A note lives in one folder.
 - **Tags**, independent of folders, so a note can be filed in one place and still turn up
   under every subject it touches.
 - **Search across everything**, powered by Postgres full-text search rather than a naive
@@ -56,6 +69,8 @@ what the app does.
   apart in a list are not two tags.
 - **Tidy up.** Settings can delete folders and tags nothing is using any more, so the
   sidebar does not silently accumulate.
+- **A note's folder now has its own icon** in the note list, so the folder chip reads as
+  structurally different from a tag chip at a glance, not just by position.
 
 ### 🔍 Not losing things
 
@@ -69,8 +84,13 @@ what the app does.
   itself. It is a backup that still restores on a different machine, not a set of links
   back to the server it was taken from.
 - **Per-note export** as Markdown or PDF.
-- **Import from elsewhere.** Google Keep, Evernote and Obsidian, with a preview of what
-  will be created before anything is written.
+- **Import from elsewhere.** CSV, Markdown, plain text, HTML, a Lockpad JSON export, and
+  Google Keep's JSON — with a preview of what will be created before anything is written.
+  Keep exports are the best-tested path; the other formats work but have had less mileage,
+  so bring a small batch through first.
+- **Undo survives leaving a note.** Type in one note, switch to another, come back — your
+  undo (and redo) history for the first note is still exactly where you left it, for as
+  long as the tab stays open.
 
 ### 🌐 Language
 
@@ -89,6 +109,19 @@ what the app does.
   stemming has almost nothing to do anyway.
 - **Switching takes a moment on purpose.** The app blurs for a little over a second and
   comes back already translated, instead of flickering through the change word by word.
+
+### 🎨 Look and feel
+
+- **A warmer colour palette.** Cream and terracotta in light mode, espresso surfaces in
+  dark mode, including the status colours — warnings and success states feel like part of
+  the same palette rather than bolted on.
+- **The note panel's header sits visually apart from the page below it** — a frosted,
+  translucent band that fades into the solid writing surface, with the title pinned in
+  place as long notes scroll underneath it.
+- **Settings is easier to scan.** The two irreversible cleanup actions live in their own
+  clearly separated section at the bottom of the page, informational cards read
+  differently from clickable ones, and every section explains itself in one line before
+  the individual cards.
 
 ### 🔒 Privacy, concretely
 

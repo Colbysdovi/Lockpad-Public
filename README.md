@@ -66,7 +66,7 @@ docker compose up -d
 - **Rich text that stays out of the way** — headings, lists, checklists, quotes,
   code blocks with syntax highlighting, highlighter pens, images, and dividers.
   Type `/` for a command menu, or use Markdown shortcuts as you write.
-- **Organise however you think** — nested folders, tags, and note-to-note links
+- **Organise however you think** — folders, tags, and note-to-note links
   with backlinks. Pin notes per page, so a note pinned in one folder doesn't clutter
   another.
 - **Full-text search** across everything, powered by Postgres.
