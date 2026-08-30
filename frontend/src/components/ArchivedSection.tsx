@@ -2,6 +2,7 @@ import { Archive } from "@/components/icons";
 import { useNotesList, type ListParams } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { NoteCard } from "./NoteCard";
+import { useT } from "@/lib/i18n";
 
 // Contextual "Archived" section for folder/tag pages. Shows only archived notes
 // that still match the current folder / tag — the match is a live server query
@@ -18,6 +19,7 @@ export function ArchivedSection({
 }: {
   scope: { folderId: string } | { tagId: string };
 }) {
+  const t = useT();
   const params: ListParams = { filter: "archive", ...scope };
   const query = useNotesList(params);
 
@@ -25,10 +27,10 @@ export function ArchivedSection({
   if (query.isLoading || notes.length === 0) return null;
 
   return (
-    <section className="mt-6 rounded-xl border border-dashed bg-[color-mix(in_srgb,var(--muted)_30%,transparent)] p-3" aria-label="Archived notes">
+    <section className="mt-6 rounded-xl border border-dashed bg-[color-mix(in_srgb,var(--muted)_30%,transparent)] p-3" aria-label={t("list.archivedNotes")}>
       <div className="mb-3 flex items-center gap-2 px-1">
         <Archive className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Archived</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t("list.archived")}</h2>
         <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
           {notes.length}
           {query.hasNextPage ? "+" : ""}
@@ -44,7 +46,7 @@ export function ArchivedSection({
       {query.hasNextPage && (
         <div className="flex justify-center pt-3">
           <Button variant="outline" size="sm" onClick={() => query.fetchNextPage()} disabled={query.isFetchingNextPage}>
-            {query.isFetchingNextPage ? "Loading…" : "Load more archived"}
+            {query.isFetchingNextPage ? t("list.loadingMore") : t("list.loadMoreArchived")}
           </Button>
         </div>
       )}

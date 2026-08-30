@@ -26,7 +26,18 @@ export async function pinsRoutes(app: FastifyInstance) {
     const { scope } = pinScopeQuery.parse(request.query);
     const pins = await prisma.pinnedNote.findMany({
       where: { scope, note: { deletedAt: null, archivedAt: null } },
-      orderBy: { pinnedAt: "desc" },
+      // Deliberately the same three-level sort the main list uses, one level down:
+      // pinnedAt stands in for updatedAt, then the note's own createdAt, then its id.
+      //
+      // The tiebreaks are not defensive padding. Duplicating a pinned note gives the
+      // copy its original's exact `pinnedAt` (see the duplicate route), so the pair
+      // ties on the first key every time — and with `pinnedAt` alone, which of the
+      // two came first would be whatever order Postgres happened to return. The
+      // copy's `createdAt` is genuinely newer, so it settles into the slot directly
+      // ahead of its original, which is the same place a duplicate lands in the
+      // unpinned list. `noteId` last, so the order is total and never flickers
+      // between refetches.
+      orderBy: [{ pinnedAt: "desc" }, { note: { createdAt: "desc" } }, { noteId: "desc" }],
       include: { note: { include: noteInclude } },
     });
     return { notes: pins.map((p) => serializeNoteCard(p.note)) };

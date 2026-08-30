@@ -17,6 +17,16 @@ model Note {
   id               String    @id @default(cuid())
   title            String
   content          Json // TipTap document JSON
+  // Which PostgreSQL text-search configuration this note is indexed with —
+  // "english" or "french" — determined from its own text on every write. NOT the
+  // interface language: a French speaker reading an English note searches that note
+  // with English rules, which is what makes search work regardless of who is looking.
+  //
+  // The default is load-bearing for the migration rather than for new rows. Every
+  // note that existed before this column did needs a value, and "english" is what
+  // they were already being indexed with, so the default makes the schema change a
+  // no-op until the backfill reclassifies them.
+  contentLanguage String @default("english")
   color            String? // one of the fixed note-color keys (see schemas.ts `noteColor`); null = no color
   folderId         String?
   isLocked         Boolean   @default(false)
@@ -165,5 +175,21 @@ model AppState {
   id           Int       @id @default(1)
   onboardedAt  DateTime?
   seededAt     DateTime?
+  // The interface language, stored with the account rather than the browser so it
+  // follows the user to every device they open Lockpad from. NULL is load-bearing:
+  // it means "never chosen", which is what tells the client it may derive one from
+  // the browser this once. After any value is written — by auto-detection or by the
+  // user — the browser is never consulted again.
+  //
+  // Deliberately NOT modelled as an enum. A Prisma enum is a Postgres type, and
+  // adding a language would then mean a type migration rather than a catalogue file;
+  // the set of supported locales belongs to the frontend that has the strings, and
+  // the write path validates against it.
+  uiLanguage   String?
+  // When the one-time pass that classified pre-existing notes finished. NULL means it
+  // has not run. It is a timestamp rather than a boolean for the same reason
+  // onboardedAt is: "when did this happen" answers questions a flag cannot, and costs
+  // the same to store.
+  notesClassifiedAt DateTime?
   updatedAt    DateTime  @updatedAt
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Upload, Download, Lock, Hash, FolderMinus, Info, RotateCcw } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { SettingsSection, DataRow } from "@/components/SettingsPrimitives";
+import { LanguageSettings } from "@/components/LanguageSettings";
 import { ImportDialog } from "@/components/ImportDialog";
 import { CleanupDialog, type CleanupKind } from "@/components/CleanupDialog";
 import { SecuritySettings } from "@/components/SecuritySettings";
@@ -10,6 +11,7 @@ import { OnboardingReplay } from "@/components/onboarding/OnboardingGate";
 import { useOnboardingActions } from "@/lib/onboarding";
 import { api } from "@/lib/api";
 import { downloadText } from "@/lib/download";
+import { useT } from "@/lib/i18n";
 
 // The bits of the export file this page reads to describe what just happened. The
 // downloaded file carries far more (every note, folder, tag and link — see
@@ -54,6 +56,7 @@ interface ExportFile {
 // every visit in exchange for nothing. Worth revisiting past a dozen items.
 
 export function SettingsPage() {
+  const t = useT();
   const [importOpen, setImportOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const { reset: resetOnboarding } = useOnboardingActions();
@@ -73,7 +76,7 @@ export function SettingsPage() {
       downloadText(JSON.stringify(data, null, 2), `lockpad-export-${date}.json`, "application/json");
       setSummary(data);
     } catch {
-      setError("Export failed. Please try again.");
+      setError(t("settings.export.failed"));
     } finally {
       setExporting(false);
     }
@@ -82,16 +85,20 @@ export function SettingsPage() {
   return (
     <div className="h-full overflow-y-auto overscroll-contain">
       <div className="px-5 py-8 sm:px-8">
-        <h1 className="type-section mb-1">Settings</h1>
+        <h1 className="type-section mb-1">{t("settings.title")}</h1>
         <p className="mb-8 text-sm text-muted-foreground">
-          Your library, this instance, and the few things that can't be undone. Everything here runs
-          locally on your server — nothing is uploaded.
+          {t("settings.intro")}
         </p>
 
+        {/* One gap, declared once. Each section now draws its own surface, so the
+            separation is carried by the tint rather than by whitespace, and the wide
+            `mt-10` every section used to set for itself would read as the page having
+            come apart. Setting it here also means a new section cannot forget it. */}
+        <div className="space-y-8">
         <SettingsSection
           id="data-heading"
-          title="Data"
-          description="Bring notes in from another app, or take the whole library out as one file."
+          title={t("settings.data.title")}
+          description={t("settings.data.description")}
         >
           <div className="grid gap-3 md:grid-cols-2">
             {/* The full caveat lives HERE rather than in the welcome tour. It is
@@ -103,21 +110,21 @@ export function SettingsPage() {
                 Google Keep, which is the fact; this says what to do about it. */}
             <DataRow
               icon={Upload}
-              title="Import notes"
-              description="Bring in notes from CSV, a JSON export, HTML, or Markdown/text files. Import has been tested most thoroughly against Google Keep exports — the other formats work, they've just had less mileage, so bring a small batch through first and check it looks right."
+              title={t("settings.import.title")}
+              description={t("settings.import.description")}
             >
               <Button variant="outline" onClick={() => setImportOpen(true)} className="gap-1.5">
-                <Upload className="h-4 w-4" /> Import
+                <Upload className="h-4 w-4" /> {t("settings.import.button")}
               </Button>
             </DataRow>
 
             <DataRow
               icon={Download}
-              title="Export all notes"
-              description="Download your entire library — active, archived, and trashed notes plus folders, tags, and links — as one JSON backup file."
+              title={t("settings.export.title")}
+              description={t("settings.export.description")}
             >
               <Button onClick={runExport} disabled={exporting} className="gap-1.5">
-                <Download className="h-4 w-4" /> {exporting ? "Exporting…" : "Export all"}
+                <Download className="h-4 w-4" /> {exporting ? t("settings.export.exporting") : t("settings.export.button")}
               </Button>
             </DataRow>
           </div>
@@ -126,34 +133,40 @@ export function SettingsPage() {
 
           {summary && (
             <div className="mt-4 rounded-xl border bg-card p-4 text-sm">
-              <p className="font-medium">Export complete</p>
+              <p className="font-medium">{t("settings.export.complete")}</p>
               <p className="mt-1 text-muted-foreground">
-                Saved {summary.counts.notes} note{summary.counts.notes === 1 ? "" : "s"}, {summary.counts.folders} folder
-                {summary.counts.folders === 1 ? "" : "s"}, and {summary.counts.tags} tag
-                {summary.counts.tags === 1 ? "" : "s"} to your downloads.
+                {/* Three counted nouns in one sentence. Each goes through the
+                    plural machinery separately and the sentence that joins them is
+                    itself a catalogue string, so a language that orders or joins them
+                    differently is free to. */}
+                {t("settings.export.saved", {
+                  notes: t("settings.export.counts", {
+                    notes: t("notes.count", { count: summary.counts.notes }),
+                    folders: t("folders.count", { count: summary.counts.folders }),
+                    tags: t("tags.count", { count: summary.counts.tags }),
+                  }),
+                })}
               </p>
 
               {summary.skippedLocked.length > 0 && (
                 <div className="mt-3 rounded-lg border border-[color-mix(in_srgb,var(--muted-foreground)_35%,transparent)] bg-[color-mix(in_srgb,var(--muted)_50%,transparent)] p-3">
                   <div className="flex items-center gap-1.5 font-medium">
                     <Lock className="h-4 w-4" />
-                    {summary.skippedLocked.length} locked note{summary.skippedLocked.length === 1 ? "" : "s"} skipped
+                    {t("settings.export.skipped", { count: summary.skippedLocked.length })}
                   </div>
                   <p className="mt-1 text-muted-foreground">
-                    Locked notes can't be exported — their contents are readable only after unlocking. Unlock these and
-                    export again, or export each one individually from its note menu:
+                    {t("settings.export.skippedWhy")}
                   </p>
                   <ul className="mt-2 list-inside list-disc text-muted-foreground">
                     {summary.skippedLocked.map((n) => (
-                      <li key={n.id} className="truncate">{n.title || "Untitled"}</li>
+                      <li key={n.id} className="truncate">{n.title || t("note.untitled")}</li>
                     ))}
                   </ul>
                 </div>
               )}
 
               <p className="mt-3 text-xs text-muted-foreground">
-                Keep this file somewhere safe. Restoring a backup from the app isn't available yet — for now the JSON is
-                your portable copy of the library.
+                {t("settings.export.keepSafe")}
               </p>
             </div>
           )}
@@ -165,18 +178,17 @@ export function SettingsPage() {
             for below the fold. */}
         <SettingsSection
           id="guide-heading"
-          title="Getting started"
-          description="The welcome tour, any time you want to see it again."
-          className="mt-10"
+          title={t("settings.guide.title")}
+          description={t("settings.guide.description")}
         >
           <div className="grid gap-3 md:grid-cols-2">
             <DataRow
               icon={Info}
-              title="Show the welcome guide"
-              description="The five-step tour from your first launch — notes and folders, locking, and importing. Reopening it never adds or changes any notes."
+              title={t("settings.guide.show.title")}
+              description={t("settings.guide.show.description")}
             >
               <Button variant="outline" onClick={() => setGuideOpen(true)} className="gap-1.5">
-                <Info className="h-4 w-4" /> Show guide
+                <Info className="h-4 w-4" /> {t("settings.guide.show.button")}
               </Button>
             </DataRow>
 
@@ -194,7 +206,7 @@ export function SettingsPage() {
               <DataRow
                 icon={RotateCcw}
                 title="Replay first run (dev)"
-                description="Re-arms the first-run flag so the welcome animation and the wizard play again on reload. Adds no notes — starter-note seeding stays done. Never ships to production."
+                description="Re-arms the first-run flag so the welcome animation and the wizard play again on reload. Adds no notes, because starter-note seeding stays done. Never ships to production."
               >
                 <Button
                   variant="outline"
@@ -207,6 +219,13 @@ export function SettingsPage() {
             )}
           </div>
         </SettingsSection>
+
+        {/* Language sits above Security and below Getting started. It is the only
+            setting here that changes what every other word on the page says, so
+            burying it under the destructive sections would mean the person who most
+            needs it — someone whose language was guessed wrong — scrolls furthest
+            through text they cannot read to reach it. */}
+        <LanguageSettings />
 
         <SecuritySettings />
         <AboutSettings />
@@ -222,35 +241,35 @@ export function SettingsPage() {
             nothing louder for the real one. The heading is what marks the group. */}
         <SettingsSection
           id="danger-heading"
-          title="Danger zone"
-          description="Permanent deletions. Nothing here goes to the trash first, so nothing here can be undone."
+          title={t("settings.danger.title")}
+          description={t("settings.danger.description")}
           tone="danger"
-          className="mt-10"
         >
           <div className="grid gap-3 md:grid-cols-2">
             <DataRow
               icon={Hash}
               tone="danger"
-              title="Delete unused tags"
-              description="Find tags that aren’t on a single note — including notes in the archive or the trash — and clear them out."
+              title={t("settings.cleanupTags.title")}
+              description={t("settings.cleanupTags.description")}
             >
               <Button variant="outline" onClick={() => setCleanup("tags")} className="gap-1.5">
-                <Hash className="h-4 w-4" /> Review
+                <Hash className="h-4 w-4" /> {t("cleanup.review")}
               </Button>
             </DataRow>
 
             <DataRow
               icon={FolderMinus}
               tone="danger"
-              title="Delete unused folders"
-              description="Find folders with no notes anywhere inside them, at any depth, and remove them along with the empty folders they contain."
+              title={t("settings.cleanupFolders.title")}
+              description={t("settings.cleanupFolders.description")}
             >
               <Button variant="outline" onClick={() => setCleanup("folders")} className="gap-1.5">
-                <FolderMinus className="h-4 w-4" /> Review
+                <FolderMinus className="h-4 w-4" /> {t("cleanup.review")}
               </Button>
             </DataRow>
           </div>
         </SettingsSection>
+        </div>
       </div>
 
       <ImportDialog open={importOpen} onOpenChange={setImportOpen} />

@@ -13,6 +13,7 @@ import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import type { EditorState } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import type { Node as PMNode } from "@tiptap/pm/model";
+import { tOutsideReact } from "@/lib/i18n";
 
 interface Block {
   node: PMNode;
@@ -149,12 +150,12 @@ function moveBlockBy(view: EditorView, direction: -1 | 1): boolean {
   const index = sibs.findIndex((s) => s.pos === block.pos);
   const target = index + direction;
   if (index < 0 || target < 0 || target >= sibs.length) {
-    announce(direction < 0 ? "Already the first block" : "Already the last block");
+    announce(direction < 0 ? tOutsideReact("editor.block.atTop") : tOutsideReact("editor.block.atBottom"));
     return true; // handled: swallow the key so it doesn't also move the caret
   }
   const insertPos = direction < 0 ? sibs[target].pos : sibs[target].pos + sibs[target].size;
   const moved = performBlockMove(view, block, insertPos, true);
-  if (moved) announce(direction < 0 ? "Block moved up" : "Block moved down");
+  if (moved) announce(direction < 0 ? tOutsideReact("editor.block.movedUp") : tOutsideReact("editor.block.movedDown"));
   view.focus();
   return true;
 }
@@ -249,8 +250,8 @@ class DragHandleView {
     this.handle.setAttribute("role", "button");
     this.handle.setAttribute("tabindex", "0");
     this.handle.setAttribute("aria-haspopup", "menu");
-    this.handle.setAttribute("aria-label", "Move block");
-    this.handle.title = "Drag to reorder · click for options";
+    this.handle.setAttribute("aria-label", tOutsideReact("editor.block.move"));
+    this.handle.title = tOutsideReact("editor.block.dragHint");
     // Track A: the browser owns the desktop drag. A native drag suppresses text
     // selection by construction (the selection the mouse would otherwise paint never
     // starts), carries a real drag image of the block, and cannot be stolen mid-gesture
@@ -270,8 +271,8 @@ class DragHandleView {
     this.addBtn.setAttribute("contenteditable", "false");
     this.addBtn.setAttribute("role", "button");
     this.addBtn.setAttribute("tabindex", "0");
-    this.addBtn.setAttribute("aria-label", "Insert block below");
-    this.addBtn.title = "Insert block";
+    this.addBtn.setAttribute("aria-label", tOutsideReact("editor.block.insertBelow"));
+    this.addBtn.title = tOutsideReact("editor.block.insert");
     this.addBtn.innerHTML = `<span class="lockpad-add-block-icon">${PLUS}</span>`;
     this.addBtn.style.display = "none";
     document.body.appendChild(this.addBtn);
@@ -511,12 +512,12 @@ class DragHandleView {
     const index = sibs.findIndex((s) => s.pos === block.pos);
     const target = index + direction;
     if (index < 0 || target < 0 || target >= sibs.length) {
-      announce(direction < 0 ? "Already the first block" : "Already the last block");
+      announce(direction < 0 ? tOutsideReact("editor.block.atTop") : tOutsideReact("editor.block.atBottom"));
       return;
     }
     const insertPos = direction < 0 ? sibs[target].pos : sibs[target].pos + sibs[target].size;
     if (performBlockMove(this.view, block, insertPos, false)) {
-      announce(direction < 0 ? "Block moved up" : "Block moved down");
+      announce(direction < 0 ? tOutsideReact("editor.block.movedUp") : tOutsideReact("editor.block.movedDown"));
     }
     this.closeMenu();
     this.hideHandle();
@@ -528,7 +529,7 @@ class DragHandleView {
     const menu = document.createElement("div");
     menu.className = "lockpad-block-menu";
     menu.setAttribute("role", "menu");
-    for (const [label, dir] of [["Move up", -1], ["Move down", 1]] as const) {
+    for (const [label, dir] of [[tOutsideReact("editor.block.moveUp"), -1], [tOutsideReact("editor.block.moveDown"), 1]] as const) {
       const item = document.createElement("button");
       item.type = "button";
       item.setAttribute("role", "menuitem");

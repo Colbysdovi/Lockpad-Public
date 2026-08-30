@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { EASE_FOLLOW } from "@/lib/motion";
+import { useT } from "@/lib/i18n";
 
 // The first thing a brand-new library ever shows.
 //
@@ -39,6 +40,7 @@ const BEAT_MS = 3900;
 const REDUCED_MS = 500;
 
 export function WelcomeAnimation({ onDone }: { onDone: () => void }) {
+  const t = useT();
   const reduceMotion = useReducedMotion();
   const [leaving, setLeaving] = useState(false);
 
@@ -156,7 +158,7 @@ export function WelcomeAnimation({ onDone }: { onDone: () => void }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.75, ease: EASE_FOLLOW, delay: 1.45 }}
         >
-          Your notes, on a server you own.
+          {t("welcome.tagline")}
         </motion.p>
       </motion.div>
     </motion.div>

@@ -6,6 +6,7 @@ import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from "@
 import { useFolders, useTags, useCreateTag, useCreateFolder } from "@/lib/hooks";
 import type { Folder } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 
 // The two pickers used everywhere a note's filing is changed: the Organize popover
 // on a card, the note detail's Details panel, and the bulk-action bar.
@@ -56,6 +57,7 @@ export function FolderSelect({
   onChange: (id: string | null) => void;
   className?: string;
 }) {
+  const tr = useT();
   const { data } = useFolders();
   const createFolder = useCreateFolder();
   const [open, setOpen] = useState(false);
@@ -81,7 +83,7 @@ export function FolderSelect({
   const panel = (
     <Command>
       <CommandInput
-        placeholder="Search or create folder…"
+        placeholder={tr("selector.folder.search")}
         value={query}
         onValueChange={setQuery}
         onKeyDown={(e) => {
@@ -98,10 +100,10 @@ export function FolderSelect({
         {canCreate ? (
           <CommandItem value={`__create__ ${trimmed}`} onSelect={createAndSelect} className="max-sm:py-3 max-sm:text-base">
             <FolderPlus className="h-3.5 w-3.5 text-primary" />
-            Create folder “{trimmed}”
+            {tr("selector.folder.create", { name: trimmed })}
           </CommandItem>
         ) : (
-          <CommandEmpty>No folder found.</CommandEmpty>
+          <CommandEmpty>{tr("selector.folder.empty")}</CommandEmpty>
         )}
         {flat.map((f) => (
           <CommandItem key={f.id} value={`${f.name} ${f.id}`} onSelect={() => { onChange(f.id); setOpen(false); }} className="max-sm:py-3 max-sm:text-base">
@@ -138,7 +140,7 @@ export function FolderSelect({
     <ResponsivePopover
       open={open}
       onOpenChange={(o) => { setOpen(o); if (!o) setQuery(""); }}
-      title="Folder"
+      title={tr("selector.folder.title")}
       contentClassName="w-64 p-0"
       trigger={
         <button
@@ -160,7 +162,7 @@ export function FolderSelect({
               <span className="truncate">{selected.name}</span>
             </>
           ) : (
-            <span className="text-muted-foreground">No folder</span>
+            <span className="text-muted-foreground">{tr("selector.folder.none")}</span>
           )}
           <ChevronsUpDown className="ml-auto h-3.5 w-3.5 shrink-0 opacity-50" />
         </button>
@@ -187,11 +189,17 @@ export function TagMultiSelect({
   value,
   onChange,
   className,
+  compact = false,
 }: {
   value: string[];
   onChange: (ids: string[]) => void;
   className?: string;
+  /** The caller already labels this control (the note detail puts "Tags" beside it),
+   *  so the button says what it DOES rather than repeating that word. Standing alone
+   *  in the composer it keeps the noun, because there is nothing else to name it. */
+  compact?: boolean;
 }) {
+  const tr = useT();
   const { data } = useTags();
   const createTag = useCreateTag();
   const [open, setOpen] = useState(false);
@@ -221,14 +229,14 @@ export function TagMultiSelect({
   // sheet); the sheet just gets roomier touch targets via max-sm: utilities.
   const panel = (
     <Command shouldFilter>
-      <CommandInput placeholder="Search or create…" value={query} onValueChange={setQuery} className="max-sm:h-12 max-sm:text-base" />
+      <CommandInput placeholder={tr("selector.tags.search")} value={query} onValueChange={setQuery} className="max-sm:h-12 max-sm:text-base" />
       <CommandList className="max-h-56 overflow-y-auto p-1 max-sm:max-h-[55vh] max-sm:p-1.5">
         {query.trim() && !exactExists && (
           <CommandItem value={`create ${query}`} onSelect={create} className="max-sm:py-3 max-sm:text-base">
-            <Plus className="h-3.5 w-3.5" /> Create “{query.trim()}”
+            <Plus className="h-3.5 w-3.5" /> {tr("selector.tags.create", { name: query.trim() })}
           </CommandItem>
         )}
-        <CommandEmpty>Type to create a tag.</CommandEmpty>
+        <CommandEmpty>{tr("selector.tags.empty")}</CommandEmpty>
         {tags.map((t) => (
           <CommandItem key={t.id} value={t.name} onSelect={() => toggle(t.id)} className="max-sm:py-3 max-sm:text-base">
             <Hash className="h-3.5 w-3.5" /> {t.name}
@@ -246,10 +254,10 @@ export function TagMultiSelect({
       {selectedTags.map((t) => (
         <span key={t.id} className="chip-scrim flex h-9 items-center gap-1 rounded-md px-2.5 text-sm text-foreground">
           #{t.name}
-          <Tooltip label={`Remove the #${t.name} tag`}>
+          <Tooltip label={tr("selector.tags.remove", { name: t.name })}>
             <button
               type="button"
-              aria-label={`Remove the #${t.name} tag`}
+              aria-label={tr("selector.tags.remove", { name: t.name })}
               onClick={() => toggle(t.id)}
               className="hover-scrim -mr-0.5 rounded p-1"
             >
@@ -261,7 +269,7 @@ export function TagMultiSelect({
       <ResponsivePopover
         open={open}
         onOpenChange={setOpen}
-        title="Tags"
+        title={tr("selector.tags.title")}
         contentClassName="w-56 p-0"
         trigger={
           // Dashed border marks this as an "add something" affordance rather than a
@@ -270,7 +278,7 @@ export function TagMultiSelect({
             type="button"
             className="hover-scrim flex h-9 items-center gap-1 rounded-md border border-dashed border-[color-mix(in_srgb,var(--muted-foreground)_55%,transparent)] px-3 text-sm text-muted-foreground"
           >
-            <Hash className="h-4 w-4" /> Tags
+            <Hash className="h-4 w-4" /> {compact ? tr("selector.tags.add") : tr("selector.tags.title")}
           </button>
         }
       >

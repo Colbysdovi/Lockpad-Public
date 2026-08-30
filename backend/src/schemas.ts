@@ -100,6 +100,15 @@ export const createTagSchema = z.object({
   name: z.string().min(1).max(100),
 });
 
+// Rename only. `.strict()` so a request that also tries to send, say, a note list is
+// rejected rather than quietly ignored — a tag's associations are not editable
+// through its own record, and the schema is where that is stated.
+export const updateTagSchema = z
+  .object({
+    name: z.string().min(1).max(100),
+  })
+  .strict();
+
 export const applyTagSchema = z.object({
   tagId: z.string().cuid().optional(),
   name: z.string().min(1).max(100).optional(),
@@ -133,4 +142,16 @@ export const lockNoteSchema = z.object({
     // Argon2 params or PBKDF2 iterations, etc.
     params: z.record(z.string(), z.unknown()).optional(),
   }),
+});
+
+// The interface languages the app has catalogues for. Duplicated from the frontend's
+// `lib/i18n/types.ts` rather than shared, because the two halves cannot import each
+// other — and duplicated deliberately narrow: this list exists so the server can
+// REFUSE a locale it has never heard of, not so it can render one. If they ever
+// disagree, the failure is a rejected write with a clear 400, which is visible, and
+// not a stored value the interface cannot render, which is not.
+export const SUPPORTED_LOCALES = ["en", "fr"] as const;
+
+export const languagePreferenceInput = z.object({
+  language: z.enum(SUPPORTED_LOCALES),
 });

@@ -2,6 +2,7 @@ import { Node, mergeAttributes } from "@tiptap/core";
 import type { DOMOutputSpec } from "@tiptap/pm/model";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { NoteLinkView } from "./NoteLinkView";
+import { tOutsideReact } from "@/lib/i18n";
 
 // The inline note-link chip (note-link-chip-prd.md).
 //
@@ -86,7 +87,7 @@ export const NoteLink = Node.create({
   // miniature on a card looks like the thing it is a miniature OF.
   renderHTML({ HTMLAttributes }) {
     const noteId = String(HTMLAttributes.noteId ?? "");
-    const title = String(HTMLAttributes.title ?? "").trim() || "Untitled";
+    const title = String(HTMLAttributes.title ?? "").trim() || tOutsideReact("note.untitled");
     return [
       "a",
       mergeAttributes({

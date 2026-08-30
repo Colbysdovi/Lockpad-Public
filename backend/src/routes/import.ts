@@ -6,6 +6,7 @@ import { parseCsvFile, parseTextFile, parseHtmlFile, parseJsonFile, type ParsedN
 import { makePreview } from "../lib/tiptap.js";
 import { noteInclude, serializeNote } from "../lib/serialize.js";
 import { absorbInlineImages } from "../lib/noteImages.js";
+import { detectNoteLanguage } from "../lib/language.js";
 
 // Bringing notes in from other apps.
 //
@@ -134,6 +135,11 @@ export async function importRoutes(app: FastifyInstance) {
         data: {
           title: note.title,
           content: note.content as Prisma.InputJsonValue,
+          // An import is the single largest source of French notes this app will
+          // ever see — somebody arriving from another app with years of writing in
+          // it. Classifying on the way in is what makes their library searchable
+          // properly from the first minute rather than after they next edit each note.
+          contentLanguage: detectNoteLanguage({ title: note.title, content: note.content }),
           folderId,
           // Preserve the note's original creation date when the import knows it
           // (e.g. a date parsed out of the title). Overrides the @default(now()).
@@ -152,7 +158,12 @@ export async function importRoutes(app: FastifyInstance) {
           ? row
           : await prisma.note.update({
               where: { id: row.id },
-              data: { content: content as Prisma.InputJsonValue },
+              data: {
+                content: content as Prisma.InputJsonValue,
+                // Absorbing inline pictures rewrote the document, so the language is
+                // re-derived from what is actually being stored.
+                contentLanguage: detectNoteLanguage({ title: row.title, content }),
+              },
               include: noteInclude,
             });
       created.push(serializeNote(finished));

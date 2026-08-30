@@ -10,6 +10,7 @@
 // service. That is the same promise the rest of the app makes, and it is the reason
 // the resizing happens here rather than in a library on the way in.
 import { api } from "./api";
+import { tOutsideReact } from "@/lib/i18n";
 
 // The formats a browser renders natively. Kept in step with the server's allowlist
 // (backend/src/lib/noteImages.ts) — the server is the authority; this is what stops
@@ -101,7 +102,7 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
         "iPhone HEIC photos aren’t supported yet. In Settings › Camera › Formats, choose “Most Compatible”, or share the photo as a JPEG first."
       );
     }
-    throw new ImageError("That file isn’t an image Lockpad can show. Use a JPEG, PNG, WebP or GIF.");
+    throw new ImageError(tOutsideReact("image.notAnImage"));
   }
 
   if (file.size > MAX_BYTES && mime === "image/gif") {
@@ -112,7 +113,7 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
   try {
     bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
   } catch {
-    throw new ImageError("That image file appears to be damaged and couldn’t be read.");
+    throw new ImageError(tOutsideReact("image.damaged"));
   }
 
   const { width, height } = bitmap;
@@ -134,7 +135,7 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
   const ctx = canvas.getContext("2d");
   if (!ctx) {
     bitmap.close();
-    throw new ImageError("Your browser couldn’t process that image.");
+    throw new ImageError(tOutsideReact("image.processFailed"));
   }
   ctx.drawImage(bitmap, 0, 0, targetW, targetH);
   bitmap.close();
@@ -146,7 +147,7 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
   const blob = await new Promise<Blob | null>((resolve) =>
     canvas.toBlob(resolve, outMime, outMime === "image/png" ? undefined : REENCODE_QUALITY)
   );
-  if (!blob) throw new ImageError("Your browser couldn’t process that image.");
+  if (!blob) throw new ImageError(tOutsideReact("image.processFailed"));
 
   if (blob.size > MAX_BYTES) {
     throw new ImageError(
@@ -195,7 +196,7 @@ async function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new ImageError("An image in this note couldn’t be read."));
+    reader.onerror = () => reject(new ImageError(tOutsideReact("image.readFailed")));
     reader.readAsDataURL(blob);
   });
 }
@@ -245,7 +246,7 @@ export async function inlineNoteImages(
   for (const src of srcs) {
     try {
       const response = await fetch(src, { credentials: "include" });
-      if (!response.ok) throw new ImageError("An image in this note couldn’t be read.");
+      if (!response.ok) throw new ImageError(tOutsideReact("image.readFailed"));
       inlined.set(src, await blobToDataUrl(await response.blob()));
     } catch (error) {
       if (!options.skipFailures) throw error;

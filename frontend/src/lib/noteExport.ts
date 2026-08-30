@@ -6,6 +6,7 @@ import { tiptapToMarkdown } from "./tiptapMarkdown";
 import { inlineNoteImages } from "./noteImages";
 import { downloadText, sanitizeFilename } from "./download";
 import { printNote } from "@/components/NotePrintHost";
+import { tOutsideReact } from "@/lib/i18n";
 
 /** Export an unlocked note's content to a `.md` file, led by its title as an H1.
  *  Callers must gate on `!note.isLocked` — a locked note has no plaintext content
@@ -18,7 +19,7 @@ import { printNote } from "@/components/NotePrintHost";
  *  defeats the point of exporting. An image that cannot be read is left as a
  *  reference rather than failing the export: the words are what matter most. */
 export async function exportNoteAsMarkdown(note: Note): Promise<void> {
-  const title = note.title?.trim() || "Untitled";
+  const title = note.title?.trim() || tOutsideReact("note.untitled");
   const content = await inlineNoteImages(note.content, { skipFailures: true });
   const body = tiptapToMarkdown(content);
   // Lead with the title as an H1 so the file stands on its own, then the body.

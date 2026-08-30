@@ -127,6 +127,7 @@ export const HardDrive = makeIcon("HardDrive");
 export const Image = makeIcon("Image");
 export const Info = makeIcon("Info");
 export const Italic = makeIcon("Italic");
+export const Languages = makeIcon("Languages");
 export const Link2 = makeIcon("Link2");
 export const List = makeIcon("List");
 export const ListChecks = makeIcon("ListChecks");

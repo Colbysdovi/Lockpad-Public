@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run lint:palette && tsc --noEmit && vite build",
+    "build": "npm run lint:palette && npm run lint:i18n && tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "lint:palette": "node scripts/check-palette-alpha.mjs"
+    "lint:palette": "node scripts/check-palette-alpha.mjs",
+    "lint:i18n": "node scripts/check-untranslated.mjs"
   },
   "dependencies": {
     "@fontsource-variable/newsreader": "^5.3.0",

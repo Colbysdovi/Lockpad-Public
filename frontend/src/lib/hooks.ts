@@ -68,12 +68,25 @@ const qs = (p: Record<string, string | number | undefined>) => {
 // was to where it now is (see useReflowFlip) instead of teleporting. Capturing costs
 // one layout read of the mounted cards, and only matters for the ~600ms window after
 // an action: a refetch from scrolling or window focus finds no snapshot and is static.
+// The PINNED section is refreshed here too, and it has to be. Every action that comes
+// through this seam can change what belongs in it: deleting or archiving a pinned note
+// takes it out (the pins query filters on deletedAt/archivedAt), restoring or
+// unarchiving puts it back (the pin row itself survives a soft delete), and a duplicate
+// inherits its original's pins. Leaving it out was a real bug — the pinned section kept
+// serving its stale list, so a deleted card stayed mounted in its finished exit state
+// and left a hole in the grid where the reflow should have been, with the section's
+// count still including it.
+//
+// Unscoped (every scope) rather than the current page's: an action can affect a note
+// pinned in scopes other than the one being looked at, and only one pinned section is
+// mounted at a time, so this refetches one small query rather than many.
 export function useInvalidateNotes() {
   const qc = useQueryClient();
   return () => {
     captureReflow();
     qc.invalidateQueries({ queryKey: ["notes"] });
     qc.invalidateQueries({ queryKey: ["note"] });
+    qc.invalidateQueries({ queryKey: ["pins"] });
   };
 }
 
@@ -156,12 +169,15 @@ export function useCreateNote() {
   });
 }
 
-/** Copy a note, title, content, folder and tags. Refused for locked notes: the
+/** Copy a note, title, content, folder, tags and pins. Refused for locked notes: the
  *  server holds only ciphertext, so it has nothing it could duplicate. */
 export function useDuplicateNote() {
   const invalidate = useInvalidateNotes();
   return useMutation({
     mutationFn: (id: string) => api.post<Note>(`/notes/${id}/duplicate`),
+    // The copy inherits its original's pins, so duplicating a pinned note adds a card
+    // to the PINNED section rather than to the list below — which the shared
+    // invalidate already refreshes.
     onSuccess: invalidate,
   });
 }
@@ -262,6 +278,11 @@ export function useUpdateFolder() {
       // so refresh note lists + the open note too — their strips recolour immediately.
       qc.invalidateQueries({ queryKey: ["notes"] });
       qc.invalidateQueries({ queryKey: ["note"] });
+      // The pinned section is a separate query with its own cache, and its cards
+      // carry the same folder chip and the same derived accent strip. Without this
+      // a rename or recolour reached every card EXCEPT the pinned ones — the same
+      // omission that was found on the tag rename above, and it was here first.
+      qc.invalidateQueries({ queryKey: ["pins"] });
     },
   });
 }
@@ -289,6 +310,30 @@ export function useCreateTag() {
   return useMutation({
     mutationFn: (name: string) => api.post<Tag>("/tags", { name }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["tags"] }),
+  });
+}
+
+/** Rename a tag. The only way to change a tag's own record.
+ *
+ *  Invalidates NOTES as well as the tag list, and that is not belt-and-braces: every
+ *  note card renders its tags as chips carrying the name, and the open note shows
+ *  them too. Refreshing only `["tags"]` would rename it in the sidebar and leave the
+ *  old spelling on every card that carries it. */
+export function useUpdateTag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) => api.patch<Tag>(`/tags/${id}`, { name }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tags"] });
+      qc.invalidateQueries({ queryKey: ["notes"] });
+      qc.invalidateQueries({ queryKey: ["note"] });
+      // And the PINNED section, which is a separate query with its own cache. Its
+      // cards render tag chips exactly like the ones below it, so leaving it out
+      // renamed the tag everywhere except on the pinned cards — caught by looking,
+      // not by reasoning: three pinned cards sat there still spelling it the old way
+      // while the sidebar and every unpinned card had already updated.
+      qc.invalidateQueries({ queryKey: ["pins"] });
+    },
   });
 }
 

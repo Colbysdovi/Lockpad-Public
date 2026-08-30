@@ -1,11 +1,11 @@
-# 📦 Self-hosting Lockpad on the UGREEN NAS
+# 📦 Self-hosting Lockpad on a NAS
 
 Three containers via Docker Compose — `postgres`, `backend` (Fastify + Prisma),
 `frontend` (static SPA served by nginx). Postgres is **never** published outside
 the internal Docker network. Remote access is over Tailscale only; nothing is
 exposed to the public internet.
 
-Run every command below **on the NAS** (UGOS Pro → Docker, or over SSH). This
+Run every command below **on the NAS** (your NAS's Docker app, or over SSH). This
 machine (where the code was written) has no access to your tailnet.
 
 ## 🧰 1. First-time setup
@@ -23,12 +23,13 @@ Edit `.env`:
 
 | Variable            | What to set it to                                                              |
 | ------------------- | ------------------------------------------------------------------------------ |
+| `TAG`               | The release to run, e.g. `v1.0.0`. Only used by `docker-compose.public.yml` (prebuilt images). Unset means `latest`, which is rebuilt on every push to `main` — pin it unless you want the app to move on its own. |
 | `POSTGRES_PASSWORD` | A long random string (`openssl rand -hex 32`).                                 |
 | `DATABASE_URL`      | Use the same password: `postgresql://lockpad:<PW>@postgres:5432/lockpad?schema=public` |
 | `CORS_ORIGINS`      | Your MagicDNS URL, e.g. `https://lockpad.<your-tailnet>.ts.net`                 |
 | `APP_PASSWORD`      | The single login password for the app. Leave empty only to disable auth.       |
 | `SESSION_SECRET`    | Signs the login session — `openssl rand -hex 32`. Required when `APP_PASSWORD` is set. |
-| `COOKIE_SECURE`     | `false` for plain HTTP over the tailnet; `true` if you front it with `tailscale serve` (HTTPS). |
+| `COOKIE_SECURE`     | `false` unless HTTPS is the **only** way you reach Lockpad. `true` stops the cookie being sent over any plain-`http://` address, which logs you out of the LAN URL (§3). |
 | `FRONTEND_PORT`     | Leave `5173` unless it clashes with another service.                           |
 
 `.env` is gitignored and never leaves the NAS.
@@ -66,17 +67,46 @@ start. If the backend cannot migrate, it exits and says why in its logs. Read th
 `APP_PASSWORD` is set.
 
 **Its own tailnet node over HTTPS (recommended for remote):** use the sidecar
-overlay. Put a Tailscale auth key in `.env` (`TS_AUTHKEY=…`, from
-login.tailscale.com → Settings → Keys), then:
+overlay.
+
+> **If you installed with `install.sh`, don't do this by hand.** Re-run the installer
+> and answer yes to its Tailscale question: it collects the auth key, brings the
+> overlay up, waits for the node to join, adds the tailnet address to `CORS_ORIGINS`,
+> and pins the compose files so a later `up -d` cannot drop the sidecar. Everything
+> below is the manual equivalent, and the base file differs — see the next paragraph.
+
+Put a Tailscale auth key in `.env` (`TS_AUTHKEY=…`, from login.tailscale.com →
+Settings → Keys), then:
 
 ```bash
+# Built from source, as the rest of this document assumes:
 docker compose -f docker-compose.yml -f docker-compose.tailscale.yml up -d
+
+# Installed with install.sh, which uses prebuilt images:
+docker compose -f docker-compose.public.yml -f docker-compose.tailscale.yml up -d
 ```
+
+**Get that base file right.** This document is written for the source-build path, so
+it says `docker-compose.yml` throughout — but `install.sh` deploys
+`docker-compose.public.yml`, and running the source-build command on an installed
+setup asks Compose to *build* images from a checkout that isn't there. Substitute the
+file your install actually uses in every command below, not just this one.
 
 Joins the tailnet as `lockpad` and serves HTTPS at
 `https://lockpad.<your-tailnet>.ts.net` (via `tailscale serve`, never funnel).
-Set `COOKIE_SECURE=true` in `.env` when using HTTPS. Tighten your Tailscale ACLs
-so only your own devices can reach the node.
+`CORS_ORIGINS` does not strictly need the new address — nginx serves the page and
+proxies `/api` on the same origin, so the browser never makes a cross-origin request
+(the same reasoning as §9). `install.sh` adds it anyway, for the same belt-and-braces
+reason it already lists the LAN address: the allowlist is exact-match, and an entry
+that is never consulted costs nothing next to a failure that would be baffling.
+Tighten your Tailscale ACLs so only your own devices can reach the node.
+
+**Leave `COOKIE_SECURE=false` if you use more than one address.** A secure cookie is
+only ever sent over HTTPS, so turning it on logs you out of every plain-`http://`
+address — including the LAN one two paragraphs up, which §9 explicitly says is a
+normal thing to run alongside this. Set it to `true` only when the HTTPS address is
+the *only* way you reach Lockpad. (`install.sh` leaves it `false` for this reason and
+says so on the way out.)
 
 **Running both paths at once is normal**, and usually what you want: the tailnet URL
 from outside the house, the LAN URL from inside (§9). They coexist.
@@ -116,12 +146,37 @@ first one.
 Back up first — one command, and it is the difference between a bad update costing
 you an evening and costing you your notes (§5).
 
+Which command you want depends on which base file you run — and they update
+differently, which is the part worth reading before pasting anything.
+
+**Building from source** (`docker-compose.yml`) — the code comes from git, so `git
+pull` is the update:
+
 ```bash
 cd Lockpad
 ./scripts/backup.sh
 git pull
 docker compose up -d --build
 ```
+
+**Running prebuilt images** (`docker-compose.public.yml`, which is what `install.sh`
+sets up) — there is nothing to build, and `git pull` updates nothing that runs. The
+version is whatever `TAG` in `.env` says, so an update is an edit to that line:
+
+```bash
+cd Lockpad
+./scripts/backup.sh
+# edit TAG in .env to the release you want, e.g. TAG=v1.1.0
+docker compose pull && docker compose up -d
+```
+
+If `TAG` is unset you are following the rolling `latest` tag instead, and `pull`
+alone will move you whenever new code is published — convenient, but it means the
+app can change on a day you did not choose. Pinning is the recommended setup and is
+what a fresh `install.sh` writes.
+
+Go **forward** only. Migrations run in one direction, so a database an upgrade has
+already touched cannot be handed back to an older release.
 
 Migrations are **not** a separate step: the backend container applies any pending
 ones itself on startup (`docker-entrypoint.sh`). Watch them land with
@@ -142,7 +197,7 @@ A nightly `pg_dump` script is included:
 
 ```bash
 ./scripts/backup.sh                 # writes backups/lockpad-<timestamp>.sql.gz
-# cron (UGOS task scheduler), 2:30am daily:
+# cron (your NAS's task scheduler), 2:30am daily:
 #   30 2 * * *  /path/to/Lockpad/scripts/backup.sh >> /var/log/lockpad/backup.log 2>&1
 ```
 
@@ -252,7 +307,7 @@ ssh <nas-user>@<nas-ip> 'cd <path-to-lockpad> && sed -i "s|^FRONTEND_BIND=.*|FRO
 That widens the frontend's bind from loopback back to the LAN and recreates the one
 container, reopening `http://<nas-ip>:5173` in about thirty seconds. If SSH happens
 to be disabled too, the NAS's own web administration UI reaches the same setting
-through Container Manager.
+through its Docker management app.
 
 Two things worth knowing before you rely on it. Reopening the LAN port puts you back
 on plain HTTP, which means traffic is readable to anyone else on the network **and**

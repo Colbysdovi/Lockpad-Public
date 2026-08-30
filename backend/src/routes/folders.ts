@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../prisma.js";
 import { badRequest, conflict, notFound } from "../errors.js";
+import { collidesWith } from "../lib/names.js";
 import { createFolderSchema, updateFolderSchema } from "../schemas.js";
 
 interface FolderNode {
@@ -166,10 +167,39 @@ export async function foldersRoutes(app: FastifyInstance) {
       }
     }
 
+    // Folder names are unique across the WHOLE TREE, not merely among siblings.
+    //
+    // Worth stating plainly, because siblings-only is the more usual rule for a
+    // nested structure and is what somebody reading this would expect: it was
+    // considered and the wider rule was chosen deliberately. The consequence is that
+    // "Drafts" under Work and "Drafts" under Personal cannot both exist. That is
+    // restrictive, and it is the point — folder names surface in flat lists all over
+    // this app (the composer's folder picker, the bulk bar's Move menu, the note
+    // card's folder chip) where the parent is not shown, and two folders called
+    // "Drafts" are indistinguishable in every one of them.
+    //
+    // Only enforced on RENAME. Creation is deliberately untouched by this work, so
+    // existing duplicates keep working and are only blocked from being reintroduced
+    // through this route — see the trailing note in the PRD's follow-ups.
+    //
+    // Compared in JS for the same reason as tags: the rule folds whitespace as well
+    // as case, which no Postgres collation does. See lib/names.ts.
+    const name = body.name?.trim();
+    if (name !== undefined) {
+      if (!name) throw badRequest("Folder name cannot be empty");
+      const others = await prisma.folder.findMany({
+        where: { id: { not: id } },
+        select: { name: true },
+      });
+      if (collidesWith(name, others.map((f) => f.name))) {
+        throw conflict(`Another folder is already called “${name}”.`);
+      }
+    }
+
     return prisma.folder.update({
       where: { id },
       data: {
-        ...(body.name !== undefined ? { name: body.name } : {}),
+        ...(name !== undefined ? { name } : {}),
         ...(body.color !== undefined ? { color: body.color } : {}),
         ...(body.parentFolderId !== undefined ? { parentFolderId: body.parentFolderId } : {}),
       },

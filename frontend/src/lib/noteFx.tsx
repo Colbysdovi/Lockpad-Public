@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { EASE_FOLLOW, SPRING_ANSWER, REFLOW_MS, EASE_REFLOW, FLY_MS, FLY_HOLD_MAX_MS, FLY_CLEANUP_MAX_MS, flyCleanupMs, LOCK_REVEAL_MS, LOCK_BAIL_MS } from "./motion";
+import { EASE_FOLLOW, SPRING_ANSWER, REFLOW_MS, REFLOW_HOLD_BAIL_MS, EASE_REFLOW, FLY_MS, FLY_HOLD_MAX_MS, FLY_CLEANUP_MAX_MS, flyCleanupMs, FLY_LIFT, FLY_NO_SHADOW, SPRING_SETTLE, SETTLE_IN_PLACE_PX, flyDistance, HIGHLIGHT_AFTER_REVEAL_MS, FLY_SETTLE_TAIL_MS, LOCK_REVEAL_MS, LOCK_BAIL_MS } from "./motion";
 
 // Cross-component effects for the note micro-interactions.
 //
@@ -28,10 +28,20 @@ interface FlyRequest {
   to: FlyRect | null;
   /** "lift" = pin's pick-up-and-place arc; "stack" = duplicate's copy. */
   kind: "lift" | "stack";
+  /** The note whose real card this clone is standing in for. When set, the clone does
+   *  NOT dissolve: the real card is revealed underneath it the moment it has actually
+   *  arrived, and the clone is dropped a frame later. See the ordered-swap note on
+   *  NoteFxLayer for why that is not the same thing as a very fast crossfade. */
+  reveal?: string;
+  /** How long the trip to `to` should take. Supplied by whoever lands the flight,
+   *  because only they know how far it actually has to go — a copy settling into the
+   *  slot it is already hovering over needs a short descent, not a cross-screen
+   *  travel played out over zero pixels. */
+  ms?: number;
 }
 
 type FlyListener = (req: FlyRequest & { id: number }) => void;
-type LandListener = (payload: { id: number; to: FlyRect | null }) => void;
+type LandListener = (payload: { id: number; to: FlyRect | null; ms?: number; reveal?: string }) => void;
 type HighlightListener = (noteId: string) => void;
 
 const flyListeners = new Set<FlyListener>();
@@ -49,8 +59,8 @@ export function flyCard(req: FlyRequest): number {
 
 /** Give a held flight its destination — or `null` to call it off (the clone just
  *  fades where it is, so a failed request never strands a card on screen). */
-export function landFly(id: number, to: FlyRect | null) {
-  landListeners.forEach((l) => l({ id, to }));
+export function landFly(id: number, to: FlyRect | null, opts?: { ms?: number; reveal?: string }) {
+  landListeners.forEach((l) => l({ id, to, ms: opts?.ms, reveal: opts?.reveal }));
 }
 
 /** Briefly ring-highlight a card wherever it currently lives. */
@@ -104,6 +114,81 @@ export function consumeArrival(noteId: string) {
 // per render and changes nothing.
 const reflowFrom = new Map<string, { x: number; y: number }>();
 let reflowUntil = 0;
+// How long the current reflow waits before it starts sliding. Zero for every action
+// that simply rearranges the list; non-zero when a card is flying into the slot the
+// reflow is opening, so the neighbours move out of the way of something already on
+// its way rather than politely clearing a space in advance. See deferReflow.
+let reflowDelay = 0;
+let nextReflowDelay = 0;
+
+/** Make the NEXT reflow trail whatever is travelling into it: the cards hold their
+ *  old positions for `ms`, then slide. One-shot, consumed by the next captureReflow —
+ *  the delay belongs to a single action, and the action that sets it is the one that
+ *  knows a clone is about to launch. A caller that forgets to set it gets the plain
+ *  immediate reflow, which is the right default for everything else. */
+export function deferReflow(ms: number) {
+  nextReflowDelay = ms;
+}
+
+// ── Holding the reflow for a flight that has not launched yet ────────────────
+//
+// deferReflow above is a fixed head start, counted from the cache reconcile. That is
+// the right shape for duplicate, where the copy is already in the air by then. It is
+// the wrong shape for pin: the card is moving to the OTHER container, so its
+// destination does not exist until two queries have refetched and rendered it, and
+// the clone cannot set off until it does. Any fixed number would be guessing at a
+// network round trip, and guessing low is what produced the bug this replaces — the
+// list finished opening the gap while the card was still barely under way.
+//
+// So the reflow is held instead of delayed. Each card's slide is created PAUSED, at
+// its first keyframe, which renders it exactly where it already was; the whole grid
+// therefore sits still, looking untouched, for as long as the hold lasts. The flight
+// releases them when it launches, and from that moment the timing is honest, because
+// it is measured against the thing the user is actually watching.
+interface ReflowHold {
+  /** Every paused slide collected so far. Pin refetches two queries, so the cards
+   *  arrive in two waves a frame or two apart, and both belong to the same hold. */
+  anims: Animation[];
+  /** Set once a release has been scheduled, so the bail cannot double-book it. */
+  scheduled: boolean;
+  /** Set when the hold has been let go. Later slides run normally. */
+  closed: boolean;
+}
+let hold: ReflowHold | null = null;
+let nextReflowHeld = false;
+
+/** Hold the NEXT reflow until a flight releases it. One-shot, consumed by the next
+ *  captureReflow, exactly like deferReflow — and cancelled the same way, by passing
+ *  `false`, so an action that fails before it reflows hands the hold back instead of
+ *  leaving it primed for whichever unrelated action captures next. */
+export function holdReflow(on = true) {
+  nextReflowHeld = on;
+}
+
+/** Let the held cards slide, `delayMs` from now. Called by the flight at the moment
+ *  it launches, so the delay is a position within the journey rather than an offset
+ *  from a network event. Safe to call when nothing is held (duplicate, every ordinary
+ *  action) and safe to call twice — the first call wins, which is what lets the bail
+ *  below be unconditional. */
+export function releaseReflow(delayMs: number) {
+  const h = hold;
+  if (!h || h.scheduled) return;
+  h.scheduled = true;
+  window.setTimeout(() => {
+    h.closed = true;
+    h.anims.forEach((a) => a.play());
+    if (hold === h) hold = null;
+  }, Math.max(0, delayMs));
+}
+
+/** Pause a freshly created slide and add it to the current hold. Returns whether it
+ *  was taken, so the caller knows not to treat it as running. */
+function collectHeld(anim: Animation): boolean {
+  if (!hold || hold.closed) return false;
+  anim.pause();
+  hold.anims.push(anim);
+  return true;
+}
 
 /** Snapshot every rendered card's position. Call BEFORE the mutation that re-lays
  *  out the list; cards then animate from here to wherever they end up. */
@@ -113,18 +198,31 @@ export function captureReflow() {
     const r = el.getBoundingClientRect();
     if (el.dataset.noteId) reflowFrom.set(el.dataset.noteId, { x: r.x, y: r.y });
   });
+  reflowDelay = nextReflowDelay;
+  nextReflowDelay = 0;
+  if (nextReflowHeld) {
+    hold = { anims: [], scheduled: false, closed: false };
+    nextReflowHeld = false;
+    // Never leave the grid frozen mid-rearrangement because a flight that was going
+    // to release it never launched.
+    window.setTimeout(() => releaseReflow(0), REFLOW_HOLD_BAIL_MS);
+  } else {
+    hold = null;
+  }
   // Only re-layouts caused by THIS action should animate — a later scroll or edit
-  // must not inherit a stale snapshot.
-  reflowUntil = performance.now() + 600;
+  // must not inherit a stale snapshot. A delayed reflow is owed its full window on
+  // top of the wait, or a slow refetch would land after the snapshot had expired and
+  // the cards would teleport instead. A HELD reflow is owed the whole hold for the
+  // same reason: its cards mount while the request is still in flight.
+  reflowUntil = performance.now() + 600 + reflowDelay + (hold ? REFLOW_HOLD_BAIL_MS : 0);
 }
 
-/** Where this card was before the current reflow, consumed once. */
-function takeReflowFrom(noteId: string): { x: number; y: number } | null {
+/** Where this card was before the current reflow. PEEKS — it deliberately does not
+ *  consume, because the effect below runs after every render and only one of those
+ *  renders is the one where the card actually moves. */
+function peekReflowFrom(noteId: string): { x: number; y: number } | null {
   if (performance.now() > reflowUntil) return null;
-  const r = reflowFrom.get(noteId);
-  if (!r) return null;
-  reflowFrom.delete(noteId);
-  return r;
+  return reflowFrom.get(noteId) ?? null;
 }
 
 /** Slide this card from where it used to be to where it now is, whenever an action
@@ -138,16 +236,57 @@ export function useReflowFlip(ref: React.RefObject<HTMLElement | null>, noteId: 
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el || !enabled) return;
-    const prev = takeReflowFrom(noteId);
+    const prev = peekReflowFrom(noteId);
     if (!prev) return;
     const now = el.getBoundingClientRect();
     const dx = prev.x - now.x;
     const dy = prev.y - now.y;
-    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return; // didn't actually move
-    el.animate(
+    // Didn't actually move — and crucially, the snapshot is LEFT IN PLACE.
+    //
+    // This effect has no dependency array, so it runs after every render, and the
+    // render where the data changes is not the first one to arrive: invalidating the
+    // query flips it to `isFetching` first, which re-renders the whole list with the
+    // OLD data still in it. On that render nothing has moved yet. Consuming the
+    // snapshot there — which is what this used to do, because the old helper deleted
+    // it before this check — threw away every card's starting position a frame before
+    // it was needed, and the real re-layout then had nothing to animate from. The
+    // cards cut straight to their new slots.
+    //
+    // For duplicate that is the entire illusion gone: the original is supposed to
+    // slide out from under the raised copy, and instead it was teleporting to its new
+    // column the instant the data landed, which reads as the original vanishing.
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    // A card a clone is flying to must SIT at its destination, not slide to it.
+    //
+    // Pin is the case that needs this and duplicate is the case that hid it. A
+    // duplicate's copy is a brand new note, so it was never in the snapshot and never
+    // had a slide to skip. A PINNED note is not new — it was already on screen in the
+    // other container, under the same id — so it was in the snapshot, and the card
+    // holding its landing slot was quietly FLIPping from its old position to its new
+    // one behind `visibility: hidden`, in parallel with the clone doing exactly the
+    // same journey in the overlay. Invisible, and therefore harmless to look at, but
+    // not harmless: settleInto reads the flight's target rect off this very element,
+    // and a rect read through a slide transform is where the card USED to be. The
+    // clone was being aimed at the place it had just left. Measured mid-hold: the
+    // destination reported the source's own position, which would collapse the
+    // journey to zero and turn a flight across the grid into a settle in place.
+    //
+    // The snapshot is CONSUMED rather than left behind, or the card would slide after
+    // all the moment it is revealed — from a position it left a second ago.
+    if (isLanding(noteId)) { reflowFrom.delete(noteId); return; }
+    reflowFrom.delete(noteId); // consumed only now that it is genuinely being used
+    // `fill: backwards` is what makes the delay a HOLD rather than a pause with the
+    // card already sitting at its destination: during the wait the element renders
+    // the first keyframe, so it stays visually where it was until its turn comes.
+    const slide = el.animate(
       [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
-      { duration: REFLOW_MS, easing: EASE_REFLOW }
+      { duration: REFLOW_MS, easing: EASE_REFLOW, delay: reflowDelay, fill: reflowDelay ? "backwards" : "none" }
     );
+    // Paused at its first keyframe, a slide renders the card at the position it is
+    // travelling FROM — so a held grid looks like a grid that has not moved, rather
+    // than one that has jumped and is waiting. Nothing else is needed to make the
+    // hold invisible.
+    collectHeld(slide);
   });
 }
 
@@ -402,8 +541,44 @@ export function NoteFxLayer(): ReactNode {
   const reduceRef = useRef(reduceMotion);
   reduceRef.current = reduceMotion;
 
+  // Flights whose real card has already been handed the baton. Ids only ever grow, so
+  // this is never cleared: re-arriving must be a no-op, or a late completion callback
+  // would fire a second attention pulse on a card that settled long ago.
+  const arrivedRef = useRef(new Set<number>());
+
+  const drop = useCallback((id: number) => setFlights((f) => f.filter((x) => x.id !== id)), []);
+
+  // ── The ordered swap ────────────────────────────────────────────────────────
+  //
+  // This is deliberately NOT a crossfade, and the difference is the whole point.
+  //
+  // The real card is opaque and — by this moment — pixel-identical to the clone
+  // sitting on top of it. So there is nothing to fade BETWEEN: reveal the card
+  // underneath, let it paint, then remove the clone. Neither step changes what is on
+  // screen, because at every instant something opaque and identical is covering that
+  // rectangle. A fade, by contrast, spends its whole duration with the clone at
+  // partial opacity, which makes it its own stacking context compositing against
+  // whatever is beneath — and that is the window in which any sub-pixel disagreement
+  // between the fixed overlay and the virtualized grid becomes a visible double edge.
+  // The fade was never hiding the seam; it was the only thing that could show it.
+  //
+  // Driven by the animation actually finishing rather than by a timer, because the
+  // settle runs on a spring and a spring has no fixed end to schedule against. That
+  // mismatch — a timer derived from one duration while the transform ran on another —
+  // is what produced the blink this replaces: the card was revealed at its final
+  // position while the clone was still 40% short of arriving, and the clone then went
+  // transparent mid-move.
+  const arrive = useCallback((id: number, reveal?: string) => {
+    if (!reveal || arrivedRef.current.has(id)) return;
+    arrivedRef.current.add(id);
+    revealLanding(reveal);
+    window.setTimeout(() => highlightNote(reveal), HIGHLIGHT_AFTER_REVEAL_MS);
+    // Two frames, not one: the first lets React commit the card's visibility change,
+    // the second lets the browser paint it. Only then is it safe to take the cover away.
+    requestAnimationFrame(() => requestAnimationFrame(() => drop(id)));
+  }, [drop]);
+
   useEffect(() => {
-    const drop = (id: number) => setFlights((f) => f.filter((x) => x.id !== id));
     const onFly = (req: ActiveFly) => {
       if (reduceRef.current) return;
       setFlights((f) => [...f, req]);
@@ -411,47 +586,70 @@ export function NoteFxLayer(): ReactNode {
       // no schedule yet, so it gets a long backstop: if the landing never arrives
       // (the request failed, the destination never rendered) the clone must not sit
       // on the screen indefinitely.
-      window.setTimeout(() => drop(req.id), req.to ? flyCleanupMs(req.kind) : FLY_HOLD_MAX_MS);
+      window.setTimeout(() => drop(req.id), req.to ? flyCleanupMs(req.ms ?? FLY_MS[req.kind]) : FLY_HOLD_MAX_MS);
     };
-    const onLand = ({ id, to }: { id: number; to: FlyRect | null }) => {
-      setFlights((f) => f.map((x) => (x.id === id ? { ...x, to } : x)));
-      window.setTimeout(() => drop(id), to ? FLY_CLEANUP_MAX_MS : 240);
+    const onLand = ({ id, to, ms, reveal }: { id: number; to: FlyRect | null; ms?: number; reveal?: string }) => {
+      setFlights((f) => f.map((x) => (x.id === id ? { ...x, to, ms, reveal } : x)));
+      // Backstop only. A reveal-driven flight normally hands over from its completion
+      // callback; this catches the case where that never fires — a hidden tab pauses
+      // the frame loop, and a card left permanently invisible is far worse than a
+      // clone dropped a little late.
+      const budget = to ? flyCleanupMs(ms ?? FLY_CLEANUP_MAX_MS) + (reveal ? FLY_SETTLE_TAIL_MS : 0) : 240;
+      window.setTimeout(() => { arrive(id, reveal); drop(id); }, budget);
     };
     flyListeners.add(onFly);
     landListeners.add(onLand);
     return () => { flyListeners.delete(onFly); landListeners.delete(onLand); };
-  }, []);
+  }, [arrive, drop]);
 
   if (flights.length === 0) return null;
 
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 z-[70]">
       <AnimatePresence>
-        {flights.map((f) => (
+        {flights.map((f) => {
+          // Per-action lift (see FLY_LIFT). `shadow: null` — pin — opts out of the
+          // filter entirely rather than animating it to zero, so nothing about pin's
+          // rendering changes at all.
+          const lift = FLY_LIFT[f.kind];
+          const shadowAtRest = lift.shadow ? { filter: FLY_NO_SHADOW } : {};
+          // A settle-in-place has no journey to track, so it comes to rest on the
+          // spring; anything with real distance to cover stays on FOLLOW, which is
+          // the curve for something the eye is following across the screen.
+          const settling = !!f.to && flyDistance(f.from, f.to) <= SETTLE_IN_PLACE_PX;
+          const ms = f.ms ?? FLY_MS[f.kind];
+          return (
           <motion.div
             key={f.id}
             // The clone is a static picture of the card — it never re-renders from
             // data, so it can't flicker while the real cards shuffle underneath.
-            className="raised-top absolute overflow-hidden rounded-2xl border bg-card p-5 shadow-xl"
+            className={`raised-top absolute overflow-hidden rounded-2xl border bg-card p-5 ${lift.restShadow}`}
             initial={{
               x: f.from.x,
               y: f.from.y,
               width: f.from.width,
               height: f.from.height,
               scale: 1,
+              rotate: 0,
               opacity: 1,
+              ...shadowAtRest,
             }}
-            // Two phases. Held (no destination yet): the card is picked up where it
-            // stands — a small lift, nothing else — and waits there, covering the
-            // real card's spot while the list rearranges underneath. Landing: it
-            // travels to the destination and dissolves as the real card takes over.
+            // Two phases. HELD (no destination yet): the card is picked up off the
+            // list — raised, nudged clear of the original and casting a deeper
+            // shadow — and waits there while everything rearranges underneath it.
+            // LANDING: it comes down onto the destination and dissolves as the real
+            // card takes over.
             //
-            // Targets are plain values, not keyframe arrays, so the travel starts
+            // The lift used to be a bare 4% scale in place, on the reasoning that a
+            // copy is distinguished by where it LANDS rather than by stacking on its
+            // source. That held only while a copy landed far away. Now that it lands
+            // in the slot beside its original there is no journey to read, so the
+            // stack IS the explanation: two cards, one of them clearly picked up,
+            // and the other sliding out from under it.
+            //
+            // Targets are plain values, not keyframe arrays, so the descent starts
             // from wherever the lift happens to be rather than snapping back to the
-            // origin first. Duplicate used to open with an offset "copy on a stack"
-            // beat held over the original, which is just a second identical card
-            // beside the one the user is looking at — the copy is distinguished by
-            // where it LANDS, not by stacking on its source.
+            // origin first.
             animate={
               f.to
                 ? {
@@ -460,15 +658,21 @@ export function NoteFxLayer(): ReactNode {
                     width: f.to.width,
                     height: f.to.height,
                     scale: 1,
-                    opacity: [1, 1, 0],
+                    rotate: 0,
+                    // Stays fully opaque when a real card is taking over (the swap is
+                    // ordered, not faded). Pin keeps its dissolve, unchanged.
+                    opacity: f.reveal ? 1 : [1, 1, 0],
+                    ...shadowAtRest,
                   }
                 : {
-                    x: f.from.x,
-                    y: f.from.y,
+                    x: f.from.x + lift.x,
+                    y: f.from.y + lift.y,
                     width: f.from.width,
                     height: f.from.height,
-                    scale: 1.04,
+                    scale: lift.scale,
+                    rotate: lift.rotate,
                     opacity: 1,
+                    ...(lift.shadow ? { filter: `drop-shadow(${lift.shadow})` } : {}),
                   }
             }
             // A card crossing the screen is something to follow, not a click being
@@ -479,16 +683,21 @@ export function NoteFxLayer(): ReactNode {
             transition={
               f.to
                 ? {
-                    duration: FLY_MS[f.kind] / 1000,
-                    ease: EASE_FOLLOW,
-                    opacity: { duration: FLY_MS[f.kind] / 1000, times: [0, 0.86, 1] },
+                    ...(settling ? SPRING_SETTLE : { duration: ms / 1000, ease: EASE_FOLLOW }),
+                    // Only a dissolving clone needs an opacity schedule. A clone that
+                    // is handed over to instead of faded out has nothing to time.
+                    ...(f.reveal ? {} : { opacity: { duration: ms / 1000, times: [0, 0.86, 1] } }),
                   }
                 : SPRING_ANSWER
             }
+            // Arrival, not a stopwatch: fires when the values have actually finished,
+            // spring tail included. Guarded on `f.to` because the pick-up settles too.
+            onAnimationComplete={() => { if (f.to) arrive(f.id, f.reveal); }}
             style={{ left: 0, top: 0 }}
             dangerouslySetInnerHTML={{ __html: f.html }}
           />
-        ))}
+          );
+        })}
       </AnimatePresence>
     </div>
   );

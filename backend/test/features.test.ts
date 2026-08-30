@@ -35,6 +35,7 @@ after(async () => {
 const doc = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 const post = (url: string, payload?: unknown) => app.inject({ method: "POST", url, payload: payload as any });
 const get = (url: string) => app.inject({ method: "GET", url });
+const patch = (url: string, payload?: unknown) => app.inject({ method: "PATCH", url, payload: payload as any });
 
 // ── T-05 Folders ──────────────────────────────────────────────────────────────
 test("T-05 folders: create, tree, cycle rejection, filtered notes", async () => {
@@ -100,6 +101,105 @@ test("T-06 tags: get-or-create idempotent, apply, filter", async () => {
   assert.ok(byTag.notes.some((x: any) => x.id === note.id));
   const detail = (await get(`/api/notes/${note.id}`)).json();
   assert.equal(detail.tags.length, 2);
+});
+
+// ── Renaming tags and folders ────────────────────────────────────────────────
+//
+// The rules under test are the ones the rename forms show as you type. They are
+// asserted HERE as well because the client check is a courtesy that reads a snapshot
+// — the server is what actually holds the rule, and these are the tests that say so.
+
+test("tag rename: keeps every note association and changes only the label", async () => {
+  const tag = (await post("/api/tags", { name: "draaft" })).json();
+  const note = (await post("/api/notes", { title: "Tagged for rename", content: doc("z") })).json();
+  await post(`/api/notes/${note.id}/tags`, { tagId: tag.id });
+
+  const res = await patch(`/api/tags/${tag.id}`, { name: "draft" });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.json().name, "draft");
+  assert.equal(res.json().id, tag.id, "same tag row, not a new one");
+
+  // The whole point of renaming rather than delete-and-recreate: the note keeps the
+  // tag, now reading differently, with nothing re-applied.
+  const detail = (await get(`/api/notes/${note.id}`)).json();
+  assert.ok(detail.tags.some((t: any) => t.id === tag.id && t.name === "draft"));
+  // And the tag-filtered list still finds it by the same id.
+  const byTag = (await get(`/api/notes?tagId=${tag.id}`)).json();
+  assert.ok(byTag.notes.some((x: any) => x.id === note.id), "still filterable after rename");
+});
+
+test("tag rename: refuses a name another tag already has, folding case and whitespace", async () => {
+  const a = (await post("/api/tags", { name: "Roadmap" })).json();
+  await post("/api/tags", { name: "Backlog" });
+
+  for (const attempt of ["Backlog", "backlog", "BACKLOG", "  backlog  "]) {
+    const res = await patch(`/api/tags/${a.id}`, { name: attempt });
+    assert.equal(res.statusCode, 409, `“${attempt}” should collide`);
+    assert.match(res.json().error.message, /already called/);
+  }
+
+  // Internal spacing folds too: a run of spaces is the same name as one space.
+  await post("/api/tags", { name: "Q1 planning" });
+  assert.equal((await patch(`/api/tags/${a.id}`, { name: "Q1  planning" })).statusCode, 409);
+  // But it only COLLAPSES runs, it does not delete them — these are different names.
+  assert.equal((await patch(`/api/tags/${a.id}`, { name: "Q1planning" })).statusCode, 200);
+  await patch(`/api/tags/${a.id}`, { name: "Roadmap" });
+  // Untouched by the refusals.
+  assert.equal((await get("/api/tags")).json().tags.find((t: any) => t.id === a.id).name, "Roadmap");
+});
+
+test("tag rename: its own current name is not a collision, and whitespace is trimmed", async () => {
+  const tag = (await post("/api/tags", { name: "Steady" })).json();
+  assert.equal((await patch(`/api/tags/${tag.id}`, { name: "Steady" })).statusCode, 200);
+  // Same name wearing different spacing and case — still itself, still allowed.
+  assert.equal((await patch(`/api/tags/${tag.id}`, { name: "  steady  " })).statusCode, 200);
+  assert.equal((await get("/api/tags")).json().tags.find((t: any) => t.id === tag.id).name, "steady");
+});
+
+test("tag rename: an empty or whitespace-only name is rejected", async () => {
+  const tag = (await post("/api/tags", { name: "Keeper" })).json();
+  assert.equal((await patch(`/api/tags/${tag.id}`, { name: "" })).statusCode, 400);
+  assert.equal((await patch(`/api/tags/${tag.id}`, { name: "   " })).statusCode, 400);
+  assert.equal((await get("/api/tags")).json().tags.find((t: any) => t.id === tag.id).name, "Keeper");
+});
+
+test("tag rename: an unknown id is a 404, not a silent no-op", async () => {
+  const res = await patch("/api/tags/ckzzzzzzzzzzzzzzzzzzzzzzz", { name: "Nowhere" });
+  assert.equal(res.statusCode, 404);
+});
+
+test("folder rename: refuses a name used ANYWHERE in the tree, not merely by a sibling", async () => {
+  const left = (await post("/api/folders", { name: "RenameLeft" })).json();
+  const right = (await post("/api/folders", { name: "RenameRight" })).json();
+  // A deliberately DIFFERENT branch: under siblings-only this would be allowed, and
+  // the whole reason this test exists is that the rule chosen here is wider.
+  const buried = (await post("/api/folders", { name: "Buried", parentFolderId: right.id })).json();
+
+  assert.equal((await patch(`/api/folders/${left.id}`, { name: "Buried" })).statusCode, 409);
+  assert.equal((await patch(`/api/folders/${left.id}`, { name: "  buried " })).statusCode, 409);
+  assert.equal((await patch(`/api/folders/${left.id}`, { name: "RenameRight" })).statusCode, 409);
+
+  // Renaming to something genuinely free still works, and the buried folder is
+  // untouched by any of the refusals.
+  assert.equal((await patch(`/api/folders/${left.id}`, { name: "Unclaimed" })).statusCode, 200);
+  const tree = (await get("/api/folders")).json();
+  const flat: any[] = [];
+  const walk = (ns: any[]) => ns.forEach((n) => { flat.push(n); walk(n.children ?? []); });
+  walk(tree.folders);
+  assert.equal(flat.find((f) => f.id === buried.id).name, "Buried");
+  assert.equal(flat.find((f) => f.id === left.id).name, "Unclaimed");
+});
+
+test("folder rename: its own name is fine, empty is rejected, and colour-only edits skip the check", async () => {
+  const f = (await post("/api/folders", { name: "Solo" })).json();
+  assert.equal((await patch(`/api/folders/${f.id}`, { name: "Solo" })).statusCode, 200);
+  assert.equal((await patch(`/api/folders/${f.id}`, { name: "   " })).statusCode, 400);
+  // No `name` in the body at all — the uniqueness check must not fire and block an
+  // ordinary recolour of a folder whose name happens to be a duplicate already.
+  const recolour = await patch(`/api/folders/${f.id}`, { color: "#a7f3d0" });
+  assert.equal(recolour.statusCode, 200);
+  assert.equal(recolour.json().color, "#a7f3d0");
+  assert.equal(recolour.json().name, "Solo");
 });
 
 // ── T-07 Links + backlinks ─────────────────────────────────────────────────────

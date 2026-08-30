@@ -10,6 +10,7 @@ import { beginLockFx } from "@/lib/noteFx";
 import { useLoop, useTypewriter } from "./previewAnimations";
 import type { NoteCard as NoteCardType } from "@/lib/types";
 import { useIsMobile } from "@/lib/useIsMobile";
+import { useT, tOutsideReact, type MessageKey } from "@/lib/i18n";
 
 // The pane every onboarding step shows its example in.
 //
@@ -262,6 +263,7 @@ const TRAVEL_MS = 1250;
 const LAND_MS = 2800;
 
 export function ArchitecturePreview() {
+  const t = useT();
   const reduceMotion = useReducedMotion();
   const isMobile = useIsMobile();
   const nodeW = isMobile ? NODE_W_SM : NODE_W;
@@ -281,7 +283,7 @@ export function ArchitecturePreview() {
         {/* Sat ON the border, in the app's own chip treatment, so it labels the
             boundary rather than floating near it. */}
         <span className="chip-scrim absolute -top-2 left-4 rounded px-1.5 py-0.5 text-[10px] font-medium text-[color-mix(in_srgb,var(--foreground)_70%,transparent)]">
-          Your network
+          {t("onboarding.preview.network")}
         </span>
 
         <div className="flex items-start gap-2 sm:gap-3">
@@ -289,8 +291,8 @@ export function ArchitecturePreview() {
             width={nodeW}
             compact={isMobile}
             icon={AppWindow}
-            title="This browser"
-            sub="Where you write"
+            title={t("onboarding.preview.browser")}
+            sub={t("onboarding.preview.browserSub")}
             active={atBrowser}
             badge="typing"
           />
@@ -316,8 +318,8 @@ export function ArchitecturePreview() {
             width={nodeW}
             compact={isMobile}
             icon={HardDrive}
-            title="Your server"
-            sub="Where notes are kept"
+            title={t("onboarding.preview.server")}
+            sub={t("onboarding.preview.serverSub")}
             active={atServer}
             badge="locking"
           />
@@ -628,6 +630,7 @@ export function OrganisedCardsPreview() {
  *  locked note, and locking a starter note to manufacture one would leave something
  *  permanently unreadable in a library ten seconds old. */
 export function LockedCardPreview() {
+  const t = useT();
   const reduceMotion = useReducedMotion();
 
   // Four phases, and the two short ones are exactly the app's own lock durations.
@@ -657,22 +660,22 @@ export function LockedCardPreview() {
 
   const note: NoteCardType = {
     id: "onboarding-locked-example",
-    title: "Passport and insurance numbers",
+    title: t("demo.locked.title"),
     // Reduced motion skips the performance and shows the locked end state, which is
     // the fact the step is teaching.
     isLocked: reduceMotion ? true : phase === 2,
     color: null,
-    folder: { id: "onboarding-folder", name: "Personal" },
+    folder: { id: "onboarding-folder", name: t("demo.locked.folder") },
     tags: [],
-    preview: "Passport 4B92-118-27, travel policy TR-99041",
+    preview: t("demo.locked.preview"),
     previewBlocks: [],
     // Readable contents while unlocked, so the lock has something to take away. A
     // sealing animation over an already-empty card shows nothing at all.
     previewDoc: {
       type: "doc",
       content: [
-        { type: "paragraph", content: [{ type: "text", text: "Passport 4B92-118-27, expires March 2031." }] },
-        { type: "paragraph", content: [{ type: "text", text: "Travel policy TR-99041, claims line 0800 118 442." }] },
+        { type: "paragraph", content: [{ type: "text", text: t("demo.locked.line1") }] },
+        { type: "paragraph", content: [{ type: "text", text: t("demo.locked.line2") }] },
       ],
     },
     hasEncryptedContent: true,
@@ -739,27 +742,31 @@ export function LockedCardPreview() {
 // of this grid was half errands — an MOT, a dentist appointment, order the tree — and
 // sixteen of those arriving at once told a new user that Lockpad is where chores go,
 // on the one screen showing them what a full library looks like.
-const IMPORTED: { title: string; line: string; chip: string; accent: string }[] = [
-  { title: "Recipes to try", line: "Miso butter pasta, the one from Ana", chip: "Kitchen", accent: "#fcd34d" },
-  { title: "Standup notes", line: "Blocked on the auth migration", chip: "#work", accent: "#93c5fd" },
-  { title: "Books", line: "Piranesi, then the Le Guin essays", chip: "Reading", accent: "#86efac" },
-  { title: "On rewriting", line: "Cut the first paragraph. Always.", chip: "#writing", accent: "#fca5a5" },
-  { title: "Gift ideas", line: "Dad: the good secateurs", chip: "Personal", accent: "#d8b4fe" },
-  { title: "Guitar", line: "The bridge is a different song", chip: "#music", accent: "#fcd34d" },
-  { title: "Overheard", line: "We're optimising the wrong thing", chip: "#quote", accent: "#fca5a5" },
-  { title: "Berlin", line: "The canal walk beat every museum", chip: "Travel", accent: "#93c5fd" },
-  { title: "Garden", line: "Tomatoes want six hours, not four", chip: "Home", accent: "#86efac" },
-  { title: "Podcasts", line: "The one on why cities stopped building", chip: "#listen", accent: "#d8b4fe" },
-  { title: "Sleep", line: "Reading in bed beat everything else tried", chip: "Health", accent: "#fca5a5" },
-  { title: "Side project", line: "What if the archive were the default view?", chip: "#idea", accent: "#93c5fd" },
-  { title: "Wine", line: "The Portuguese red, under a tenner", chip: "Kitchen", accent: "#fcd34d" },
-  { title: "Running", line: "Second half of the canal route is easier", chip: "#health", accent: "#86efac" },
-  { title: "On trust", line: "Anything I can't export, I don't own", chip: "#idea", accent: "#d8b4fe" },
-  { title: "Winter list", line: "Long soups, longer books", chip: "Personal", accent: "#fca5a5" },
+// Catalogue keys rather than words: these are OUR illustration, not the reader's
+// notes, and onboarding is the first thing a French visitor sees. Resolved where
+// the cards are drawn so they follow a language change like everything else.
+const IMPORTED: { titleKey: MessageKey; lineKey: MessageKey; chipKey: MessageKey; accent: string }[] = [
+  { titleKey: "demo.recipes.title", lineKey: "demo.recipes.line", chipKey: "demo.recipes.chip", accent: "#fcd34d" },
+  { titleKey: "demo.standup.title", lineKey: "demo.standup.line", chipKey: "demo.standup.chip", accent: "#93c5fd" },
+  { titleKey: "demo.books.title", lineKey: "demo.books.line", chipKey: "demo.books.chip", accent: "#86efac" },
+  { titleKey: "demo.rewriting.title", lineKey: "demo.rewriting.line", chipKey: "demo.rewriting.chip", accent: "#fca5a5" },
+  { titleKey: "demo.gifts.title", lineKey: "demo.gifts.line", chipKey: "demo.gifts.chip", accent: "#d8b4fe" },
+  { titleKey: "demo.guitar.title", lineKey: "demo.guitar.line", chipKey: "demo.guitar.chip", accent: "#fcd34d" },
+  { titleKey: "demo.overheard.title", lineKey: "demo.overheard.line", chipKey: "demo.overheard.chip", accent: "#fca5a5" },
+  { titleKey: "demo.berlin.title", lineKey: "demo.berlin.line", chipKey: "demo.berlin.chip", accent: "#93c5fd" },
+  { titleKey: "demo.garden.title", lineKey: "demo.garden.line", chipKey: "demo.garden.chip", accent: "#86efac" },
+  { titleKey: "demo.podcasts.title", lineKey: "demo.podcasts.line", chipKey: "demo.podcasts.chip", accent: "#d8b4fe" },
+  { titleKey: "demo.sleep.title", lineKey: "demo.sleep.line", chipKey: "demo.sleep.chip", accent: "#fca5a5" },
+  { titleKey: "demo.sideproject.title", lineKey: "demo.sideproject.line", chipKey: "demo.sideproject.chip", accent: "#93c5fd" },
+  { titleKey: "demo.wine.title", lineKey: "demo.wine.line", chipKey: "demo.wine.chip", accent: "#fcd34d" },
+  { titleKey: "demo.running.title", lineKey: "demo.running.line", chipKey: "demo.running.chip", accent: "#86efac" },
+  { titleKey: "demo.trust.title", lineKey: "demo.trust.line", chipKey: "demo.trust.chip", accent: "#d8b4fe" },
+  { titleKey: "demo.winter.title", lineKey: "demo.winter.line", chipKey: "demo.winter.chip", accent: "#fca5a5" },
 ];
 const IMPORT_TILES = IMPORTED.length; // four rows of four
 
 export function ImportRowPreview() {
+  const t = useT();
   const reduceMotion = useReducedMotion();
 
   // drift(900) · land(420) · read(1600) · the target withdraws(420) · then one tile at
@@ -891,7 +898,7 @@ export function ImportRowPreview() {
                       the user's own backend and parsed there (routes/import.ts), so
                       naming the place turns the anxious beat into the reassuring one,
                       and it does it with a fact rather than a promise. */}
-                  <span className="font-medium text-muted-foreground">Unpacking on your server…</span>
+                  <span className="font-medium text-muted-foreground">{t("onboarding.preview.unpacking")}</span>
                 </motion.span>
               ) : (
                 <motion.span
@@ -921,7 +928,7 @@ export function ImportRowPreview() {
         <div className="grid w-full grid-cols-4 gap-1.5">
           {IMPORTED.map((n, i) => (
             <motion.div
-              key={n.title}
+              key={n.titleKey}
               initial={false}
               // Arriving and leaving are not the same move.
               //
@@ -953,12 +960,12 @@ export function ImportRowPreview() {
                 className="absolute inset-y-0 left-0 w-[3px] rounded-l-lg"
                 style={{ background: n.accent }}
               />
-              <p className="truncate text-[9px] font-semibold leading-tight">{n.title}</p>
+              <p className="truncate text-[9px] font-semibold leading-tight">{t(n.titleKey)}</p>
               <p className="mt-0.5 line-clamp-2 text-[8px] leading-snug text-muted-foreground">
-                {n.line}
+                {t(n.lineKey)}
               </p>
               <span className="chip-scrim absolute bottom-1 left-2 inline-block rounded px-1 py-px text-[7px] text-[color-mix(in_srgb,var(--foreground)_80%,transparent)]">
-                {n.chip}
+                {t(n.chipKey)}
               </span>
             </motion.div>
           ))}
@@ -984,6 +991,7 @@ export function ImportRowPreview() {
  *
  *  Nothing here can create a note: there is no submit path wired at all. */
 export function ComposerPreview() {
+  const t = useT();
   const reduceMotion = useReducedMotion();
   const { notes } = useLibraryNotes(2);
   // A wider read purely to find filing that is actually in USE. Taking the first
@@ -1066,7 +1074,7 @@ export function ComposerPreview() {
   // sentence about tools was two facts that did not add up. A design idea, filed as a
   // design idea, is one.
   const { typed, focused, done: finishedTyping } = useTypewriter(
-    "What if search replaced the sidebar?",
+    tOutsideReact("demo.searchIdea"),
     true,
     { charMs: 48, holdMs: 2600, gapMs: 900 },
   );
@@ -1173,7 +1181,7 @@ export function ComposerPreview() {
         >
           <div className="flex items-center gap-2">
             <div className="min-h-9 flex-1 px-1 py-1.5 text-sm">
-              {typed || <span className="text-muted-foreground">Jot down an idea…</span>}
+              {typed || <span className="text-muted-foreground">{t("composer.placeholder")}</span>}
               {!reduceMotion && typed.length > 0 && !finishedTyping && (
                 <span className="ml-px inline-block h-4 w-px translate-y-0.5 animate-pulse bg-[color-mix(in_srgb,var(--foreground)_70%,transparent)]" />
               )}
@@ -1185,7 +1193,7 @@ export function ComposerPreview() {
               className="overflow-hidden"
             >
               <Button size="sm" className="h-8 gap-1.5 whitespace-nowrap px-3">
-                Create <CornerDownLeft className="h-3.5 w-3.5" />
+                {t("onboarding.preview.create")} <CornerDownLeft className="h-3.5 w-3.5" />
               </Button>
             </motion.div>
           </div>

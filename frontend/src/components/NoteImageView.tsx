@@ -3,6 +3,7 @@ import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { Trash2 } from "@/components/icons";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 
 /**
  * How a picture looks inside a note: the image, with its description written
@@ -38,6 +39,7 @@ import { cn } from "@/lib/utils";
  * the size is only written to the document when the drag ENDS.
  */
 export function NoteImageView({ node, editor, selected, updateAttributes, deleteNode }: NodeViewProps) {
+  const t = useT();
   const src = String(node.attrs.src ?? "");
   const alt = String(node.attrs.alt ?? "");
   const width = Number(node.attrs.width) || undefined;
@@ -222,13 +224,13 @@ export function NoteImageView({ node, editor, selected, updateAttributes, delete
             <div
               role="slider"
               tabIndex={0}
-              aria-label="Resize image"
+              aria-label={t("image.resize")}
               aria-orientation="horizontal"
               aria-valuemin={MIN_PERCENT}
               aria-valuemax={MAX_PERCENT}
               aria-valuenow={shownPercent ?? MAX_PERCENT}
               aria-valuetext={`${shownPercent ?? 100}% of the column width`}
-              title="Drag to resize · double-click to reset"
+              title={t("image.resizeHint")}
               onPointerDown={startResize}
               onKeyDown={onResizeKeyDown}
               onDoubleClick={() => updateAttributes({ widthPercent: null })}
@@ -268,8 +270,8 @@ export function NoteImageView({ node, editor, selected, updateAttributes, delete
                 ref={inputRef}
                 type="text"
                 value={draft}
-                placeholder="Describe this image…"
-                aria-label="Image description"
+                placeholder={t("image.describe")}
+                aria-label={t("image.description")}
                 onChange={(e) => setDraft(e.target.value)}
                 onBlur={commit}
                 onKeyDown={(e) => {
@@ -284,14 +286,14 @@ export function NoteImageView({ node, editor, selected, updateAttributes, delete
             <figcaption className="note-image-caption" contentEditable={false}>
               <button
                 type="button"
-                aria-label={alt ? `Edit description: ${alt}` : "Add a description"}
+                aria-label={alt ? `Edit description: ${alt}` : t("image.addDescription")}
                 onClick={startEditing}
                 // The caption sits on a draggable node; without this, pressing it
                 // starts a block drag instead of opening the field.
                 onMouseDown={(e) => e.stopPropagation()}
                 className={cn("note-image-caption-edit", !alt && "is-empty")}
               >
-                {alt || "Add a description"}
+                {alt || t("image.addDescription")}
               </button>
             </figcaption>
           ) : (
@@ -322,10 +324,10 @@ export function NoteImageView({ node, editor, selected, updateAttributes, delete
           onMouseDown={(e) => e.stopPropagation()}
           draggable={false}
         >
-          <Tooltip label="Remove image">
+          <Tooltip label={t("image.remove")}>
             <button
               type="button"
-              aria-label="Remove image"
+              aria-label={t("image.remove")}
               onClick={() => deleteNode()}
               className="icon-press rounded-md p-1.5 text-muted-foreground hover-scrim hover:text-destructive"
             >

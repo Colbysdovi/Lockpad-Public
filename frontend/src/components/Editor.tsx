@@ -3,8 +3,8 @@ import { Editor as TipTapEditor, EditorContent, BubbleMenu, type EditorOptions }
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
-import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
+import { TaskListWithChecked } from "./taskListView";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { common, createLowlight } from "lowlight";
 import DOMPurify from "dompurify";
@@ -22,7 +22,7 @@ import { matchProvider } from "@/lib/smartLinkProviders";
 // when a code block has none set.
 const lowlight = createLowlight(common);
 import {
-  Ban, Bold, Italic, Strikethrough, Highlighter, Image as ImageIcon, Loader2, X, Heading1, Heading2, Heading3, List, ListOrdered, ListChecks, Quote, Code, SquareCode, Link2, ChevronRight, Undo2, Redo2,
+  Ban, Bold, Italic, Strikethrough, Highlighter, Image as ImageIcon, Loader2, X, Heading1, Heading2, Heading3, List, ListOrdered, ListChecks, Quote, Code, SquareCode, Link2, Undo2, Redo2,
 } from "@/components/icons";
 import { Tooltip } from "@/components/ui/tooltip";
 import { ResponsivePopover } from "@/components/ui/responsive-popover";
@@ -33,6 +33,7 @@ import { HIGHLIGHT_COLORS, asHighlightColor, highlightVar, type HighlightColor }
 import { ImageError, prepareImage, uploadNoteImage } from "@/lib/noteImages";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useT, tOutsideReact } from "@/lib/i18n";
 
 // TipTap rich-text editor (spec §3.3). Toolbar + selection bubble menu expose
 // bold/italic/H1–H3/lists/quote/code/link. Paste is sanitized (spec §3.10 A):
@@ -77,6 +78,7 @@ function ToolbarDivider() {
 // clicking away dismisses. Kept as its own component so the popover open-state and
 // the seeded input value are local to it.
 function LinkButton({ editor }: { editor: TipTapEditor }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -105,13 +107,13 @@ function LinkButton({ editor }: { editor: TipTapEditor }) {
         if (next) setUrl((editor.getAttributes("link").href as string) ?? "");
         setOpen(next);
       }}
-      title="Link"
-      triggerLabel="Add or edit a link"
+      title={t("editor.link")}
+      triggerLabel={t("editor.link.edit")}
       contentClassName="w-72"
       trigger={
         <button
           type="button"
-          aria-label="Link"
+          aria-label={t("editor.link")}
           aria-pressed={active}
           className={cn(
             "icon-press shrink-0 rounded-md p-2.5 hover-scrim sm:p-2",
@@ -132,8 +134,8 @@ function LinkButton({ editor }: { editor: TipTapEditor }) {
           inputMode="url"
           autoComplete="off"
           spellCheck={false}
-          placeholder="Paste or type a link…"
-          aria-label="Link URL"
+          placeholder={t("editor.link.placeholder")}
+          aria-label={t("editor.link.url")}
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={(e) => {
@@ -157,6 +159,7 @@ function LinkButton({ editor }: { editor: TipTapEditor }) {
 // then land on nothing. Preventing the default keeps the selection exactly where
 // the user made it, which is the whole point of a selection-based action.
 function HighlightSwatches({ editor, onDone }: { editor: TipTapEditor; onDone?: () => void }) {
+  const t = useT();
   const active = editor.isActive("highlight");
   const current = active ? asHighlightColor(editor.getAttributes("highlight").color) : null;
 
@@ -187,10 +190,10 @@ function HighlightSwatches({ editor, onDone }: { editor: TipTapEditor; onDone?: 
       ))}
       {/* Removing the highlight is part of the same control, not a separate menu —
           you reach for the highlighter to take one off just as often as to put one on. */}
-      <Tooltip label="Remove highlight">
+      <Tooltip label={t("editor.highlight.remove")}>
         <button
           type="button"
-          aria-label="Remove highlight"
+          aria-label={t("editor.highlight.remove")}
           disabled={!active}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => { editor.chain().focus().unsetHighlight().run(); onDone?.(); }}
@@ -210,19 +213,20 @@ function HighlightSwatches({ editor, onDone }: { editor: TipTapEditor; onDone?: 
 // bubble-menu path (which morphs in place) because the persistent toolbar has room
 // for a real popover and no focus contest to lose.
 function HighlightButton({ editor }: { editor: TipTapEditor }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const active = editor.isActive("highlight");
   return (
     <ResponsivePopover
       open={open}
       onOpenChange={setOpen}
-      title="Highlight"
-      triggerLabel="Highlight"
+      title={t("editor.highlight")}
+      triggerLabel={t("editor.highlight")}
       contentClassName="w-auto"
       trigger={
         <button
           type="button"
-          aria-label="Highlight"
+          aria-label={t("editor.highlight")}
           aria-pressed={active}
           className={cn(
             "icon-press shrink-0 rounded-md p-2.5 hover-scrim sm:p-2",
@@ -239,6 +243,7 @@ function HighlightButton({ editor }: { editor: TipTapEditor }) {
 }
 
 function Toolbar({ editor, canInsertImages }: { editor: TipTapEditor; canInsertImages: boolean }) {
+  const t = useT();
   const toolbarRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
@@ -326,7 +331,7 @@ function Toolbar({ editor, canInsertImages }: { editor: TipTapEditor; canInsertI
             history, so the pair also reports how far there is to go in either
             direction — and a press that could do nothing is never offered. */}
         <ToolbarButton
-          label="Undo last change"
+          label={t("editor.undo")}
           pressed={false}
           disabled={!editor.can().undo()}
           onClick={() => editor.chain().focus().undo().run()}
@@ -334,7 +339,7 @@ function Toolbar({ editor, canInsertImages }: { editor: TipTapEditor; canInsertI
           <Undo2 className="h-[18px] w-[18px]" />
         </ToolbarButton>
         <ToolbarButton
-          label="Redo last change"
+          label={t("editor.redo")}
           pressed={false}
           disabled={!editor.can().redo()}
           onClick={() => editor.chain().focus().redo().run()}
@@ -342,35 +347,35 @@ function Toolbar({ editor, canInsertImages }: { editor: TipTapEditor; canInsertI
           <Redo2 className="h-[18px] w-[18px]" />
         </ToolbarButton>
         <ToolbarDivider />
-        <ToolbarButton label="Bold" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="h-[18px] w-[18px]" /></ToolbarButton>
-        <ToolbarButton label="Italic" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="h-[18px] w-[18px]" /></ToolbarButton>
+        <ToolbarButton label={t("editor.bold")} active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="h-[18px] w-[18px]" /></ToolbarButton>
+        <ToolbarButton label={t("editor.italic")} active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="h-[18px] w-[18px]" /></ToolbarButton>
         {/* Strikethrough was already in the document model (StarterKit ships it) but
             had no button, so the only way to reach it was typing ~~like this~~ from
             memory. It sits with bold and italic because that is what it is — a third
             inline emphasis — and it pairs with the app's checklists: crossing a line
             out is how a plan gets amended rather than erased. */}
-        <ToolbarButton label="Strikethrough" active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough className="h-[18px] w-[18px]" /></ToolbarButton>
+        <ToolbarButton label={t("editor.strikethrough")} active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough className="h-[18px] w-[18px]" /></ToolbarButton>
         <HighlightButton editor={editor} />
         <ToolbarDivider />
-        <ToolbarButton label="Heading 1" active={editor.isActive("heading", { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}><Heading1 className="h-[18px] w-[18px]" /></ToolbarButton>
-        <ToolbarButton label="Heading 2" active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}><Heading2 className="h-[18px] w-[18px]" /></ToolbarButton>
-        <ToolbarButton label="Heading 3" active={editor.isActive("heading", { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}><Heading3 className="h-[18px] w-[18px]" /></ToolbarButton>
+        <ToolbarButton label={t("editor.heading1")} active={editor.isActive("heading", { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}><Heading1 className="h-[18px] w-[18px]" /></ToolbarButton>
+        <ToolbarButton label={t("editor.heading2")} active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}><Heading2 className="h-[18px] w-[18px]" /></ToolbarButton>
+        <ToolbarButton label={t("editor.heading3")} active={editor.isActive("heading", { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}><Heading3 className="h-[18px] w-[18px]" /></ToolbarButton>
         <ToolbarDivider />
-        <ToolbarButton label="Bullet list" active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}><List className="h-[18px] w-[18px]" /></ToolbarButton>
-        <ToolbarButton label="Numbered list" active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-[18px] w-[18px]" /></ToolbarButton>
-        <ToolbarButton label="Checklist" active={editor.isActive("taskList")} onClick={() => editor.chain().focus().toggleTaskList().run()}><ListChecks className="h-[18px] w-[18px]" /></ToolbarButton>
+        <ToolbarButton label={t("editor.bulletList")} active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}><List className="h-[18px] w-[18px]" /></ToolbarButton>
+        <ToolbarButton label={t("editor.numberedList")} active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-[18px] w-[18px]" /></ToolbarButton>
+        <ToolbarButton label={t("editor.checklist")} active={editor.isActive("taskList")} onClick={() => editor.chain().focus().toggleTaskList().run()}><ListChecks className="h-[18px] w-[18px]" /></ToolbarButton>
         <ToolbarDivider />
-        <ToolbarButton label="Quote" active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quote className="h-[18px] w-[18px]" /></ToolbarButton>
+        <ToolbarButton label={t("editor.quote")} active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quote className="h-[18px] w-[18px]" /></ToolbarButton>
         {/* SquareCode, not the bare Code brackets: the bubble menu now offers INLINE
             code with that glyph, and two actions that do different things must not
             look identical. The frame around these brackets is the block. */}
-        <ToolbarButton label="Code block" active={editor.isActive("codeBlock")} onClick={() => editor.chain().focus().toggleCodeBlock().run()}><SquareCode className="h-[18px] w-[18px]" /></ToolbarButton>
+        <ToolbarButton label={t("editor.codeBlock")} active={editor.isActive("codeBlock")} onClick={() => editor.chain().focus().toggleCodeBlock().run()}><SquareCode className="h-[18px] w-[18px]" /></ToolbarButton>
         <ToolbarDivider />
         {/* Images are only offered once the note actually exists on the server —
             there is nowhere to upload to otherwise. That is why the quick composer
             (which has no note yet) shows no button rather than a broken one. */}
         {canInsertImages && (
-          <ToolbarButton label="Insert image" pressed={false} onClick={() => editor.chain().focus().pickImage().run()}>
+          <ToolbarButton label={t("editor.insertImage")} pressed={false} onClick={() => editor.chain().focus().pickImage().run()}>
             <ImageIcon className="h-[18px] w-[18px]" />
           </ToolbarButton>
         )}
@@ -419,6 +424,7 @@ export function Editor({
    *  trigger has to be a counter rather than the value changing. */
   noteLinkPick?: { seq: number; noteId: string; title: string };
 }) {
+  const t = useT();
   // The selection bubble menu is unreliable with touch text-selection; on phones
   // we rely on the (now larger, scrollable) toolbar instead.
   const isMobile = useIsMobile();
@@ -473,7 +479,7 @@ export function Editor({
     async (file: File): Promise<ImageUploadResult | null> => {
       if (!noteId) return null;
       try {
-        setImageStatus({ kind: "busy", message: "Adding image…" });
+        setImageStatus({ kind: "busy", message: t("editor.image.adding") });
         const prepared = await prepareImage(file);
         const uploaded = await uploadNoteImage(noteId, prepared);
         setImageStatus(null);
@@ -484,7 +490,7 @@ export function Editor({
           message:
             error instanceof ImageError || error instanceof ApiError
               ? error.message
-              : "That image couldn’t be added.",
+              : t("editor.image.failed"),
         });
         return null;
       }
@@ -509,8 +515,11 @@ export function Editor({
         autolink: true,
         HTMLAttributes: { target: "_blank", rel: "noopener noreferrer nofollow" },
       }),
-      Placeholder.configure({ placeholder: "Start writing…  (type / for commands, [[ to link)" }),
-      TaskList,
+      // The placeholder is read at extension-configure time, so it takes the module-level
+      // translator rather than a hook — the editor is built inside a useMemo, outside any
+      // render that could subscribe to the locale.
+      Placeholder.configure({ placeholder: tOutsideReact("editor.placeholder") }),
+      TaskListWithChecked.configure({ showCheckedFold: collapseChecked }),
       TaskItem.configure({ nested: true }),
       // Highlight is ours rather than @tiptap/extension-highlight so the colour is
       // stored by name and resolved per theme — see components/highlight.ts.
@@ -751,8 +760,8 @@ export function Editor({
               inputMode="url"
               autoComplete="off"
               spellCheck={false}
-              placeholder="Paste or type a link…"
-              aria-label="Link URL"
+              placeholder={t("editor.link.placeholder")}
+              aria-label={t("editor.link.url")}
               value={linkUrl}
               onChange={(e) => setLinkUrl(e.target.value)}
               onBlur={dismissBubbleLink}
@@ -764,17 +773,17 @@ export function Editor({
             />
           ) : (
             <>
-              <ToolbarButton pill label="Bold" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="h-[18px] w-[18px]" /></ToolbarButton>
-              <ToolbarButton pill label="Italic" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="h-[18px] w-[18px]" /></ToolbarButton>
-              <ToolbarButton pill label="Strikethrough" active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough className="h-[18px] w-[18px]" /></ToolbarButton>
+              <ToolbarButton pill label={t("editor.bold")} active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="h-[18px] w-[18px]" /></ToolbarButton>
+              <ToolbarButton pill label={t("editor.italic")} active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="h-[18px] w-[18px]" /></ToolbarButton>
+              <ToolbarButton pill label={t("editor.strikethrough")} active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough className="h-[18px] w-[18px]" /></ToolbarButton>
               {/* INLINE code lives only here, never in the persistent toolbar. It is a
                   property of selected words — like bold or a link — whereas the
                   toolbar's Code block turns the whole paragraph into a code block.
                   Putting the two side by side was the surest way to have people reach
                   for the wrong one. */}
-              <ToolbarButton pill label="Inline code" active={editor.isActive("code")} onClick={() => editor.chain().focus().toggleCode().run()}><Code className="h-[18px] w-[18px]" /></ToolbarButton>
-              <ToolbarButton pill label="Highlight" active={editor.isActive("highlight")} onClick={() => setBubbleHighlight(true)}><Highlighter className="h-[18px] w-[18px]" /></ToolbarButton>
-              <ToolbarButton pill label="Link" active={editor.isActive("link")} onClick={startBubbleLink}><Link2 className="h-[18px] w-[18px]" /></ToolbarButton>
+              <ToolbarButton pill label={t("editor.inlineCode")} active={editor.isActive("code")} onClick={() => editor.chain().focus().toggleCode().run()}><Code className="h-[18px] w-[18px]" /></ToolbarButton>
+              <ToolbarButton pill label={t("editor.highlight")} active={editor.isActive("highlight")} onClick={() => setBubbleHighlight(true)}><Highlighter className="h-[18px] w-[18px]" /></ToolbarButton>
+              <ToolbarButton pill label={t("editor.link")} active={editor.isActive("link")} onClick={startBubbleLink}><Link2 className="h-[18px] w-[18px]" /></ToolbarButton>
             </>
           )}
         </BubbleMenu>
@@ -808,7 +817,7 @@ export function Editor({
           {imageStatus.kind === "error" && (
             <button
               type="button"
-              aria-label="Dismiss"
+              aria-label={t("editor.dismiss")}
               onClick={() => setImageStatus(null)}
               className="icon-press shrink-0 rounded-md p-1 hover-scrim"
             >
@@ -818,71 +827,6 @@ export function Editor({
         </div>
       )}
       <EditorContent editor={editor} />
-      {collapseChecked && <CheckedItemsFooter editor={editor} editable={editable} />}
-    </div>
-  );
-}
-
-// Footer accordion of checked checklist items (Keep-style). Purely derived from
-// the live document — the checked nodes stay put in the doc (CSS hides them from
-// the main list), so unchecking here restores each item to its exact original
-// position and indent. Never mutates content shape, only the `checked` attr.
-function CheckedItemsFooter({ editor, editable }: { editor: TipTapEditor; editable: boolean }) {
-  const [, bump] = useReducer((n: number) => n + 1, 0);
-  const [open, setOpen] = useState(false);
-
-  // Re-derive on any transaction (typed edits, checkbox toggles, external
-  // setContent when switching notes) so the list always mirrors the document.
-  useEffect(() => {
-    editor.on("transaction", bump);
-    return () => { editor.off("transaction", bump); };
-  }, [editor]);
-
-  const items: { pos: number; text: string }[] = [];
-  editor.state.doc.descendants((node, pos) => {
-    if (node.type.name === "taskItem" && node.attrs.checked) {
-      items.push({ pos, text: node.textContent });
-    }
-  });
-
-  if (items.length === 0) return null;
-
-  const uncheck = (pos: number) => {
-    if (!editable) return;
-    // Guard against a stale position (recomputed each render, but be safe).
-    if (editor.state.doc.nodeAt(pos)?.type.name !== "taskItem") return;
-    editor.view.dispatch(editor.state.tr.setNodeAttribute(pos, "checked", false));
-  };
-
-  return (
-    <div className="mt-1 border-t pt-2">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-1.5 rounded-md px-1 py-1.5 text-sm font-medium text-muted-foreground hover-scrim hover:text-foreground"
-      >
-        <ChevronRight className={cn("h-4 w-4 transition-transform", open && "rotate-90")} />
-        {items.length} checked {items.length === 1 ? "item" : "items"}
-      </button>
-      {open && (
-        <ul className="mt-1 flex flex-col gap-1.5 pl-1.5">
-          {items.map((it) => (
-            <li key={it.pos} className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                checked
-                disabled={!editable}
-                onChange={() => uncheck(it.pos)}
-                aria-label={`Uncheck ${it.text || "item"}`}
-                className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer disabled:cursor-not-allowed"
-                style={{ accentColor: "var(--primary)" }}
-              />
-              <span className="text-sm text-muted-foreground line-through">{it.text || " "}</span>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }

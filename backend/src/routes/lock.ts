@@ -6,6 +6,7 @@ import { lockNoteSchema } from "../schemas.js";
 import { emptyDoc } from "../lib/tiptap.js";
 import { noteInclude, serializeNote } from "../lib/serialize.js";
 import { absorbInlineImages } from "../lib/noteImages.js";
+import { detectNoteLanguage } from "../lib/language.js";
 
 // Locked notes — and the deliberate ignorance of this file.
 //
@@ -109,6 +110,11 @@ export async function lockRoutes(app: FastifyInstance) {
           encryptedContent: null,
           cryptoMeta: Prisma.DbNull,
           content: content as Prisma.InputJsonValue,
+          // The plaintext is back, so the note becomes classifiable again — and it
+          // has to be classified HERE, because the tsvector regenerates on this same
+          // write. Leaving it until the next edit would mean a note that unlocks into
+          // French is indexed with English rules until someone happens to touch it.
+          contentLanguage: detectNoteLanguage({ title: note.title, content }),
         },
         include: noteInclude,
       });

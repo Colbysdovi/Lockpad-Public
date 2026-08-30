@@ -4,6 +4,7 @@ import { Check, TriangleAlert, X } from "@/components/icons";
 import { Tooltip } from "@/components/ui/tooltip";
 import { markReturning, type UndoKind } from "./noteFx";
 import { EASE_FOLLOW, EASE_FOLLOW_REVERSED } from "@/lib/motion";
+import { useT, tOutsideReact } from "@/lib/i18n";
 
 // Notification tray (idea-brief-toast-notifications.md). Undoable actions (delete,
 // archive — single + bulk) drop a toast into a bottom tray (centred on mobile,
@@ -38,11 +39,8 @@ const KIND_ICON: Record<ToastKind, ReactNode> = {
 // Screen readers get the severity in words, because the glyph is aria-hidden and a
 // failure that announces exactly like a confirmation is a failure nobody hears. Kept as a
 // short prefix rather than a rewritten sentence so the message still reads as written.
-const KIND_PREFIX: Record<ToastKind, string> = {
-  default: "",
-  success: "",
-  error: "Error: ",
-};
+const kindPrefix = (kind: ToastKind): string =>
+  kind === "error" ? tOutsideReact("toast.errorPrefix") : "";
 
 interface ToastAction {
   label: string;
@@ -87,6 +85,9 @@ export function useToast(): ToastFn {
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
+  // Named `tr`, not `t` — the tray below maps over toasts and binds `t` to one of
+  // them. A shadowed translator compiles and then translates nothing.
+  const tr = useT();
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   // Mirror of the newest message in a dedicated live region — new toasts get
   // announced there rather than via the interactive tray (a live region can't
@@ -134,7 +135,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => [...prev, { id, message, kind, action: opts?.action, icon: opts?.icon, reverse: opts?.reverse }]);
     // A trailing zero-width space on alternating toasts guarantees the live region's
     // text "changes" even when the same message fires twice in a row, so it re-announces.
-    setAnnounce(KIND_PREFIX[kind] + message + String.fromCharCode(0x200b).repeat(id % 2));
+    setAnnounce(kindPrefix(kind) + message + String.fromCharCode(0x200b).repeat(id % 2));
     if (!pausedRef.current) runTimer(id);
   }, [runTimer]);
 
@@ -201,7 +202,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             onClick={clearAll}
             className="pointer-events-auto self-end rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground hover-scrim hover:text-foreground"
           >
-            Clear all
+            {tr("toast.clearAll")}
           </button>
         )}
         {/* No `initial={false}` here: the tray is permanently mounted (see above), so
@@ -263,10 +264,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   {t.action.label}
                 </button>
               )}
-              <Tooltip label="Dismiss" side="top">
+              <Tooltip label={tr("toast.dismiss")} side="top">
                 <button
                   onClick={() => dismiss(t.id)}
-                  aria-label="Dismiss notification"
+                  aria-label={tr("toast.dismissNotification")}
                   className="shrink-0 rounded p-1 opacity-60 transition-opacity hover:opacity-100"
                 >
                   <X className="h-4 w-4" />

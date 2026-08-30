@@ -13,6 +13,7 @@ import {
   ImportRowPreview,
   ComposerPreview,
 } from "./PreviewFrame";
+import { useT, withSlot, SLOT } from "@/lib/i18n";
 
 // The five-step welcome.
 //
@@ -79,6 +80,7 @@ export function OnboardingModal({
    *  records that the tour was offered, not that it was enjoyed. */
   onSkip: () => void;
 }) {
+  const t = useT();
   // The step and the DIRECTION it was reached from, kept together so a single state
   // update can never leave them disagreeing — which would show a step arriving from
   // the wrong side, the one artefact that makes paging feel broken rather than
@@ -100,47 +102,49 @@ export function OnboardingModal({
 
   const steps: StepDef[] = [
     {
-      title: "Welcome to Lockpad",
-      cta: "Next",
+      title: t("onboarding.welcome.title"),
+      cta: t("onboarding.next"),
       preview: <ArchitecturePreview />,
       body: (
-        <p>
-          Lockpad runs on your own server. You never made an account and nothing passes through a
-          company in the middle, so what you write stays on the machine you installed it on. Give
-          it two minutes and you'll know your way around.
-        </p>
+        <p>{t("onboarding.welcome.body")}</p>
       ),
     },
     {
-      title: "Notes, folders, and tags",
-      cta: "Next",
+      title: t("onboarding.organise.title"),
+      cta: t("onboarding.next"),
       preview: <OrganisedCardsPreview />,
       body: (
         <ul className="space-y-2.5">
+          {/* The bolded term is a NODE inside the sentence, so each bullet keeps
+              one catalogue string with a {term} placeholder and `withSlot` drops the
+              <strong> in where the language put it. Translating the term and the tail
+              as two strings and concatenating would read identically in French and
+              would be unfixable for a language that wants the term elsewhere. */}
           <Bullet icon={<NotebookPen className="h-4 w-4" />}>
-            <strong>Notes</strong> are where everything goes. Write, paste, tick things off, drop
-            in some code.
+            {withSlot(t("onboarding.organise.notes.body", { term: SLOT }), (
+              <strong>{t("onboarding.organise.notes.term")}</strong>
+            ))}
           </Bullet>
           <Bullet icon={<Folder className="h-4 w-4" />}>
-            <strong>Folders</strong> hold notes that belong together. Each note lives in one.
+            {withSlot(t("onboarding.organise.folders.body", { term: SLOT }), (
+              <strong>{t("onboarding.organise.folders.term")}</strong>
+            ))}
           </Bullet>
           <Bullet icon={<Hash className="h-4 w-4" />}>
-            <strong>Tags</strong> cut across folders, so a note filed in one place still turns up
-            everywhere else it belongs.
+            {withSlot(t("onboarding.organise.tags.body", { term: SLOT }), (
+              <strong>{t("onboarding.organise.tags.term")}</strong>
+            ))}
           </Bullet>
         </ul>
       ),
     },
     {
-      title: "Lock what's sensitive",
-      cta: "Next",
+      title: t("onboarding.lock.title"),
+      cta: t("onboarding.next"),
       preview: <LockedCardPreview />,
       body: (
         <div className="space-y-3">
-          <p>
-            Any note can be locked with its own passphrase. It gets encrypted in your browser
-            before it's saved, so the server only ever holds scrambled text.
-          </p>
+          <p>{t("onboarding.lock.body")}</p>
           {/* Styled as a warning rather than as another paragraph. This is the one
               sentence in the flow with a consequence attached: everything else here
               can be forgotten and rediscovered later, whereas this one is only useful
@@ -174,41 +178,38 @@ export function OnboardingModal({
           >
             <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
             <p className="text-sm">
-              <strong>A forgotten passphrase cannot be recovered.</strong> Nobody can reset it and
-              there is no back door, which is the whole point of encrypting it. Do not lose your
-              passphrase.
+              {withSlot(t("onboarding.lock.warning.body", { term: SLOT }), (
+                <strong>{t("onboarding.lock.warning.term")}</strong>
+              ))}
             </p>
           </div>
         </div>
       ),
     },
     {
-      title: "Bring your notes with you",
-      cta: "Next",
+      title: t("onboarding.import.title"),
+      cta: t("onboarding.next"),
       preview: <ImportRowPreview />,
       body: (
         <div className="space-y-3">
+          <p>{t("onboarding.import.body1")}</p>
           <p>
-            You don't have to start over. Bring the notes you already have and carry on from where
-            you left off, with your folders and tags intact.
-          </p>
-          <p>
-            Lockpad reads CSV, JSON, HTML, Markdown and plain text, plus Google Keep's JSON export.
-            The importer is waiting in <strong>Settings</strong> whenever you're ready.
+            {withSlot(t("onboarding.import.body2", { term: SLOT }), (
+              <strong>{t("nav.settings")}</strong>
+            ))}
           </p>
         </div>
       ),
     },
     {
-      title: "Happy note-taking",
-      cta: "Get started",
+      title: t("onboarding.done.title"),
+      cta: t("onboarding.getStarted"),
       preview: <ComposerPreview />,
       body: (
         <p>
-          The bar at the bottom of your list is where every note starts. Write down whatever is on
-          your mind right now, however half-formed, and press enter. The rest of Lockpad you'll
-          pick up as you go. You can reopen this guide from <strong>Settings</strong> whenever you
-          like.
+          {withSlot(t("onboarding.done.body", { term: SLOT }), (
+            <strong>{t("nav.settings")}</strong>
+          ))}
         </p>
       ),
     },
@@ -263,7 +264,7 @@ export function OnboardingModal({
               the animation — and the visible heading is an ordinary element. */}
           <DialogTitle className="sr-only">{current.title}</DialogTitle>
           <DialogDescription className="sr-only">
-            Step {step + 1} of {steps.length}
+            {t("onboarding.step", { current: step + 1, total: steps.length })}
           </DialogDescription>
 
           {/* The one part allowed to vary, so it absorbs the difference between a
@@ -333,7 +334,7 @@ export function OnboardingModal({
                     className="overflow-hidden"
                   >
                     <Button variant="ghost" onClick={() => goTo(step - 1)} className="gap-1">
-                      <ChevronRight className="h-4 w-4 rotate-180" /> Back
+                      <ChevronRight className="h-4 w-4 rotate-180" /> {t("onboarding.back")}
                     </Button>
                   </motion.div>
                 )}
@@ -347,7 +348,7 @@ export function OnboardingModal({
 
               <div className="flex flex-1 items-center justify-end gap-2">
                 <Button variant="ghost" onClick={onSkip}>
-                  Skip
+                  {t("onboarding.skip")}
                 </Button>
                 <Button onClick={() => (last ? onFinish() : goTo(step + 1))}>{current.cta}</Button>
               </div>

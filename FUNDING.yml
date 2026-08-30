@@ -1,0 +1,10 @@
+# Puts a "Sponsor" button on the repo page.
+#
+# Ko-fi only, deliberately. GitHub Sponsors is on hold, and a Sponsor button that
+# leads to an account which does not exist is worse than no button at all — it
+# reads as a broken project to exactly the person who was willing to help.
+#
+# When the Sponsors account comes off hold, ADD the one field:
+#   github: Colbysdovi
+# Nothing else here needs to change.
+ko_fi: colbysdovi

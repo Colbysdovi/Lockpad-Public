@@ -10,6 +10,8 @@
 // nginx, and through the Vite dev proxy — and there is no CORS to configure and no
 // third-party host that could see a request. That is part of the privacy promise,
 // not just a convenience.
+import { tOutsideReact } from "@/lib/i18n";
+
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 /** A failed request, with the server's own error contract preserved: `code` is the
@@ -55,7 +57,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const err = (body as { error?: { code: string; message: string; details?: unknown } })?.error;
     // A 401 on anything other than the auth handshake means the session lapsed.
     if (res.status === 401 && !path.startsWith("/auth/")) onUnauthorized?.();
-    throw new ApiError(res.status, err?.code ?? "ERROR", err?.message ?? "Request failed", err?.details);
+    throw new ApiError(res.status, err?.code ?? "ERROR", err?.message ?? tOutsideReact("error.request"), err?.details);
   }
   return body as T;
 }
@@ -71,5 +73,10 @@ export const api = {
     request<T>(path, { method: "POST", body: form }),
   patch: <T>(path: string, body: unknown) =>
     request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
+  // PUT rather than PATCH where the request REPLACES a whole value rather than
+  // amending part of one — the interface language is a single setting that is set,
+  // not a record with fields to merge.
+  put: <T>(path: string, body: unknown) =>
+    request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
   del: <T = void>(path: string) => request<T>(path, { method: "DELETE" }),
 };

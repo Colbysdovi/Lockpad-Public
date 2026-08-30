@@ -2,8 +2,21 @@
 # serves it over HTTPS on your tailnet only (never the public internet).
 #
 # Requires TS_AUTHKEY in .env (generate at login.tailscale.com → Settings → Keys).
-# Deploy with:
-#   docker compose -f docker-compose.yml -f docker-compose.tailscale.yml up -d
+#
+# `install.sh` can set all of this up for you — answer yes to its Tailscale
+# question, on a fresh install or by re-running it against an existing one.
+#
+# By hand, the base file depends on how you installed. This is the whole reason
+# to state both: an installer user who copies the source-build command gets a
+# Compose run that tries to BUILD images they never checked out.
+#
+#   installed with install.sh (prebuilt images):
+#     docker compose -f docker-compose.public.yml -f docker-compose.tailscale.yml up -d
+#   built from source:
+#     docker compose -f docker-compose.yml -f docker-compose.tailscale.yml up -d
+#
+# Whichever you use, the FULL set of -f flags has to appear on every later command
+# too, or the sidecar silently disappears. Pin them in .env instead — see DEPLOY.md.
 #
 # The sidecar joins the internal network and `tailscale serve` proxies HTTPS 443
 # to the frontend container. Set COOKIE_SECURE=true in .env once this is on.

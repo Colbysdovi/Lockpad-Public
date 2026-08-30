@@ -6,6 +6,7 @@ import { LoginScreen } from "@/components/LoginScreen";
 import { ServerUnreachable } from "@/components/ServerUnreachable";
 import { useAuth } from "@/lib/auth";
 import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
+import { useT } from "@/lib/i18n";
 
 // The route table, and the password gate in front of it.
 //
@@ -24,6 +25,7 @@ function NoteRedirect() {
 
 export default function App() {
   const { status } = useAuth();
+  const t = useT();
 
   // Nothing renders until the server has said whether a password is required —
   // showing the app and then yanking it away, or flashing a login screen at someone
@@ -31,7 +33,7 @@ export default function App() {
   //
   // `open` (no password configured) and `authed` both fall through to the app.
   if (status === "loading") {
-    return <div className="flex min-h-[100dvh] items-center justify-center bg-canvas text-muted-foreground">Loading…</div>;
+    return <div className="flex min-h-[100dvh] items-center justify-center bg-canvas text-muted-foreground">{t("common.loading")}</div>;
   }
   if (status === "needs-login") {
     return <LoginScreen />;

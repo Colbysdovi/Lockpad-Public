@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { Logo } from "./Logo";
 import { EASE_FOLLOW } from "@/lib/motion";
+import { useT } from "@/lib/i18n";
 
 // Shown when the server did not answer at all.
 //
@@ -16,6 +17,7 @@ import { EASE_FOLLOW } from "@/lib/motion";
 // So this says what happened, says what to do about it, and keeps checking in the
 // background: start the backend and the app comes back on its own, with no reload.
 export function ServerUnreachable() {
+  const t = useT();
   const { refresh } = useAuth();
   // Purely presentational — the provider retries on its own timer regardless. This
   // just acknowledges the click, so pressing the button doesn't feel inert.
@@ -45,22 +47,20 @@ export function ServerUnreachable() {
           <Logo className="h-8 w-8" />
         </div>
 
-        <h1 className="type-section mb-1">Can't reach the server</h1>
+        <h1 className="type-section mb-1">{t("server.unreachable.title")}</h1>
         <p className="text-sm text-muted-foreground">
-          Lockpad loaded, but its backend didn't answer. Your notes are safe — the app
-          simply has nothing to talk to yet.
+          {t("server.unreachable.body")}
         </p>
 
         <p className="mt-4 text-sm text-muted-foreground">
-          If you're running it yourself, start the backend and this page will pick it up
-          on its own.
+          {t("server.unreachable.selfHosted")}
         </p>
 
         <Button onClick={retry} disabled={checking} className="mt-5 w-full">
-          {checking ? "Checking…" : "Try again"}
+          {checking ? t("server.unreachable.checking") : t("server.unreachable.retry")}
         </Button>
 
-        <p className="mt-3 text-xs text-muted-foreground">Retrying automatically every few seconds.</p>
+        <p className="mt-3 text-xs text-muted-foreground">{t("server.unreachable.auto")}</p>
       </motion.div>
     </div>
   );

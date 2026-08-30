@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n";
 
 // In-app confirmation for irreversible actions.
 //
@@ -20,8 +21,8 @@ export function ConfirmDialog({
   onOpenChange,
   title,
   description,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
+  confirmLabel,
+  cancelLabel,
   destructive = false,
   pending = false,
   onConfirm,
@@ -37,6 +38,7 @@ export function ConfirmDialog({
   pending?: boolean;
   onConfirm: () => void;
 }) {
+  const t = useT();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm gap-4">
@@ -48,7 +50,7 @@ export function ConfirmDialog({
             be the one a stray Enter lands on. */}
         <div className="flex justify-end gap-2 border-t pt-4 max-sm:pt-5">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending} className="max-sm:h-12 max-sm:text-base">
-            {cancelLabel}
+            {cancelLabel ?? t("common.cancel")}
           </Button>
           <Button
             variant={destructive ? "destructive" : "default"}
@@ -56,7 +58,7 @@ export function ConfirmDialog({
             disabled={pending}
             className="max-sm:h-12 max-sm:text-base"
           >
-            {confirmLabel}
+            {confirmLabel ?? t("confirm.confirm")}
           </Button>
         </div>
       </DialogContent>

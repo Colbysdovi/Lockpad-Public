@@ -20,6 +20,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Folder } from "@/lib/types";
 import { EASE_FOLLOW } from "@/lib/motion";
+import { useT } from "@/lib/i18n";
 
 // The page title duplicates the sidebar's active item, so it earns its place
 // only where the sidebar isn't showing it: on mobile (drawer hidden) or when the
@@ -111,6 +112,7 @@ function ListScreen(props: ListScreenProps) {
 }
 
 function ListScreenBody({ title, icon, params, emptyLabel, archiveScope, pinScope }: ListScreenProps) {
+  const t = useT();
   // At 2+ selected the bulk bar replaces the composer in the same slot.
   const { count } = useSelection();
   const { noteId } = useNoteSheet();
@@ -172,11 +174,11 @@ function ListScreenBody({ title, icon, params, emptyLabel, archiveScope, pinScop
             so the two never fight for the same pixels. */}
         <AnimatePresence>
           {showBackToTop && (
-            <Tooltip key="back-to-top" label="Back to top">
+            <Tooltip key="back-to-top" label={t("list.backToTop")}>
             <motion.button
               type="button"
               onClick={() => listRef.current?.scrollToTop()}
-              aria-label="Back to top"
+              aria-label={t("list.backToTop")}
               // Horizontal centering rides on framer's `x` (not a Tailwind translate),
               // since framer owns the `transform` property and would otherwise drop it.
               initial={reduceMotion ? { opacity: 0, x: "-50%" } : { opacity: 0, x: "-50%", y: 8, scale: 0.9 }}
@@ -185,10 +187,19 @@ function ListScreenBody({ title, icon, params, emptyLabel, archiveScope, pinScop
               transition={{ duration: 0.18, ease: EASE_FOLLOW }}
               whileHover={reduceMotion ? undefined : { scale: 1.06 }}
               whileTap={reduceMotion ? undefined : { scale: 0.94 }}
-              // Sits just above the floating composer. On mobile the composer rests
-              // collapsed (short), so the pill tucks in close (6rem); on desktop the
-              // composer is always expanded (taller), so it clears that (9rem).
-              className="surface-elevated absolute bottom-[calc(env(safe-area-inset-bottom)_+_6rem)] left-1/2 z-20 flex h-11 w-11 items-center justify-center rounded-full border bg-card text-muted-foreground hover-scrim hover:text-foreground sm:bottom-[calc(env(safe-area-inset-bottom)_+_9rem)] sm:h-10 sm:w-10"
+              // Position and size both come from the shared bottom-slot tokens, and
+              // that sharing is the point rather than tidiness: the list's bottom
+              // padding is derived from these same two values, so the button cannot be
+              // moved or resized without the list clearing the new shape too. When
+              // these were literals here and the padding was a literal in NoteList,
+              // nothing connected them and the button ended up parked on top of "End
+              // of list". Breakpoints live with the tokens in index.css.
+              style={{
+                bottom: "calc(env(safe-area-inset-bottom) + var(--bottom-slot-clearance))",
+                height: "var(--back-to-top-size)",
+                width: "var(--back-to-top-size)",
+              }}
+              className="surface-elevated absolute left-1/2 z-20 flex items-center justify-center rounded-full border bg-card text-muted-foreground hover-scrim hover:text-foreground"
             >
               <ArrowUp className="h-5 w-5 sm:h-4 sm:w-4" />
             </motion.button>
@@ -196,27 +207,44 @@ function ListScreenBody({ title, icon, params, emptyLabel, archiveScope, pinScop
           )}
         </AnimatePresence>
 
-        {count >= 2 ? <BulkActionBar /> : <NoteBar onFocusChange={setComposerFocused} />}
+        {/* The bottom slot, and the two bars that share it.
+
+            Both are rendered, not one or the other. The composer STAYS MOUNTED and
+            slides out of the viewport while the bulk bar has the slot — it was
+            previously swapped out of the tree entirely, which made the handover a
+            cut: one bar vanished mid-frame and another appeared in its place, with
+            no sense that the slot had been passed from one to the other. Keeping it
+            mounted also means a half-typed thought survives ticking a couple of
+            cards, which the old swap quietly threw away.
+
+            The bulk bar is still conditional, because it has nothing to say at zero
+            or one selected. <AnimatePresence> is what lets it finish leaving before
+            it goes: without it, unticking a note unmounts it on the spot and the
+            composer rises into a slot the bar never visibly left. */}
+        <NoteBar onFocusChange={setComposerFocused} yielded={count >= 2} />
+        <AnimatePresence>{count >= 2 && <BulkActionBar />}</AnimatePresence>
       </div>
     </div>
   );
 }
 
 export function HomePage() {
-  return <ListScreen title="All notes" params={{ filter: "active" }} pinScope="all" />;
+  const t = useT();
+  return <ListScreen title={t("nav.allNotes")} params={{ filter: "active" }} pinScope="all" />;
 }
 
 export function FolderPage() {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const folders = useFolders();
   const folder = findFolder(folders.data?.folders ?? [], id);
   return (
     <ListScreen
-      title={folder ? folder.name : "Folder"}
+      title={folder ? folder.name : t("list.title.folderFallback")}
       // Same folder mark as the sidebar, tinted with the folder's own colour.
       icon={folder ? <FolderIcon className="h-[1em] w-[1em] shrink-0" style={{ color: folder.color ?? undefined }} /> : undefined}
       params={{ filter: "active", folderId: id }}
-      emptyLabel="No notes in this folder."
+      emptyLabel={t("list.empty.folder")}
       archiveScope={id ? { folderId: id } : undefined}
       pinScope={id ? `folder:${id}` : undefined}
     />
@@ -224,6 +252,7 @@ export function FolderPage() {
 }
 
 export function TagPage() {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const tags = useTags();
   const name = tags.data?.tags.find((t) => t.id === id)?.name;
@@ -231,7 +260,7 @@ export function TagPage() {
     <ListScreen
       title={name ? `#${name}` : "Tag"}
       params={{ filter: "active", tagId: id }}
-      emptyLabel="No notes with this tag."
+      emptyLabel={t("list.empty.tag")}
       archiveScope={id ? { tagId: id } : undefined}
       pinScope={id ? `tag:${id}` : undefined}
     />
@@ -239,17 +268,19 @@ export function TagPage() {
 }
 
 export function ArchivePage() {
+  const t = useT();
   const isMobile = useIsMobile();
   return (
     <FadingList
       params={{ filter: "archive" }}
-      emptyLabel="Archive is empty."
-      header={isMobile ? <ScrollTitle title="Archive" /> : undefined}
+      emptyLabel={t("list.empty.archive")}
+      header={isMobile ? <ScrollTitle title={t("nav.archive")} /> : undefined}
     />
   );
 }
 
 export function TrashPage() {
+  const t = useT();
   const qc = useQueryClient();
   const [emptying, setEmptying] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -261,9 +292,9 @@ export function TrashPage() {
       const { deleted } = await api.del<{ deleted: number }>("/notes/trash/empty");
       qc.invalidateQueries({ queryKey: ["notes"] });
       setConfirmOpen(false);
-      toast(deleted === 1 ? "1 note permanently deleted" : `${deleted} notes permanently deleted`);
+      toast(t("list.emptyTrash.done", { count: deleted }));
     } catch {
-      toast("Could not empty the trash", { kind: "error" });
+      toast(t("list.emptyTrash.failed"), { kind: "error" });
     } finally {
       setEmptying(false);
     }
@@ -274,14 +305,14 @@ export function TrashPage() {
   return (
     <FadingList
       params={{ filter: "trash" }}
-      emptyLabel="Trash is empty."
+      emptyLabel={t("list.empty.trash")}
       pinnedHeader={
         <PageHeader
-          title="Trash"
+          title={t("nav.trash")}
           right={
             <>
               <Button variant="destructive" size="sm" onClick={() => setConfirmOpen(true)} disabled={emptying} className="gap-1.5">
-                <Trash2 className="h-4 w-4" /> {emptying ? "Emptying…" : "Empty trash"}
+                <Trash2 className="h-4 w-4" /> {emptying ? t("trash.emptying") : t("trash.emptyButton")}
               </Button>
               {/* This is the one action in the app with no undo — the notes are gone
                   from the database, not flagged — so it is also the one that must
@@ -291,9 +322,9 @@ export function TrashPage() {
               <ConfirmDialog
                 open={confirmOpen}
                 onOpenChange={setConfirmOpen}
-                title="Empty the trash?"
-                description="Every note in the trash will be permanently deleted. This is the one action that cannot be undone — notes elsewhere are not affected."
-                confirmLabel={emptying ? "Deleting…" : "Delete permanently"}
+                title={t("list.emptyTrash.title")}
+                description={t("trash.empty.body")}
+                confirmLabel={emptying ? t("list.emptyTrash.deleting") : t("list.emptyTrash.confirm")}
                 destructive
                 pending={emptying}
                 onConfirm={emptyTrash}

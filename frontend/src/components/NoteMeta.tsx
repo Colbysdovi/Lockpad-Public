@@ -7,6 +7,8 @@ import { FolderSelect, TagMultiSelect } from "./selectors";
 import { useUpdateNote, useLinks, useLinkActions, useTagActions, useNoteLookup } from "@/lib/hooks";
 import { useNoteSheet } from "@/lib/useNoteSheet";
 import type { Note } from "@/lib/types";
+import { useT } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
 // Everything about a note EXCEPT its text: which folder it is in, which tags it
 // carries, and which other notes it is connected to.
@@ -27,6 +29,18 @@ import type { Note } from "@/lib/types";
 // `openLinkSignal` is a counter, not a boolean: typing "[[" in the editor increments
 // it, and each increment opens the link picker. A boolean would only work once,
 // since it would already be true the second time.
+// The label column beside each control.
+//
+// It was `w-14` — 56px, which fits "Folder", "Tags" and "Links" and nothing longer.
+// "Étiquettes" is 62px, so in French the label ran straight into the button next to
+// it and the two words touched. A fixed width chosen against one language is a
+// layout that only holds in that language.
+//
+// `w-24` (96px) clears the longest label in both, and the labels still align in a
+// column, which is what the fixed width was for. It is not `w-auto`: three labels of
+// three different widths would leave the controls ragged.
+const META_LABEL = "w-24 shrink-0 text-muted-foreground";
+
 export function NoteMeta({
   note,
   openLinkSignal,
@@ -41,6 +55,7 @@ export function NoteMeta({
    *  surprise, not a feature. */
   onPicked?: (target: { id: string; title: string }, viaTrigger: boolean) => void;
 }) {
+  const t = useT();
   const updateNote = useUpdateNote();
   const tagActions = useTagActions();
   const links = useLinks(note.id);
@@ -72,17 +87,17 @@ export function NoteMeta({
   return (
     <div className="flex flex-col gap-3 text-sm">
       <div className="flex items-center gap-2">
-        <span className="w-14 text-muted-foreground">Folder</span>
+        <span className={META_LABEL}>{t("noteView.folder")}</span>
         <FolderSelect value={note.folder?.id ?? null} onChange={(id) => updateNote.mutate({ id: note.id, folderId: id })} />
       </div>
 
       <div className="flex items-start gap-2">
-        <span className="w-14 pt-2 text-muted-foreground">Tags</span>
-        <TagMultiSelect value={note.tags.map((t) => t.id)} onChange={onTagsChange} />
+        <span className={cn(META_LABEL, "pt-2")}>{t("noteView.tags")}</span>
+        <TagMultiSelect value={note.tags.map((t) => t.id)} onChange={onTagsChange} compact />
       </div>
 
       <div className="flex items-start gap-2">
-        <span className="w-14 pt-2 text-muted-foreground">Links</span>
+        <span className={cn(META_LABEL, "pt-2")}>{t("noteView.links")}</span>
         <div className="flex-1">
           <div className="mb-1 flex flex-wrap gap-1.5">
             {links.data?.links.map((l) => (
@@ -95,10 +110,10 @@ export function NoteMeta({
                     not something that has to stand out from surrounding prose. */}
                 <button className="flex items-center gap-1.5 hover:underline" onClick={() => openNote(l.id)}>
                   <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  {l.title || "Untitled"}
+                  {l.title || t("note.untitled")}
                 </button>
-                <Tooltip label={`Unlink “${l.title || "Untitled"}”`}>
-                  <button aria-label={`Unlink “${l.title || "Untitled"}”`} onClick={() => linkActions.remove.mutate({ noteId: note.id, targetId: l.id })}>
+                <Tooltip label={t("noteView.unlink", { title: l.title || t("note.untitled") })}>
+                  <button aria-label={t("noteView.unlink", { title: l.title || t("note.untitled") })} onClick={() => linkActions.remove.mutate({ noteId: note.id, targetId: l.id })}>
                     <X className="h-3 w-3" />
                   </button>
                 </Tooltip>
@@ -107,11 +122,11 @@ export function NoteMeta({
             <ResponsivePopover
               open={linkPicker}
               onOpenChange={(o) => { setLinkPicker(o); if (o) setPickerViaTrigger(false); }}
-              title="Link a note"
+              title={t("noteView.linkNote")}
               contentClassName="w-72 p-0"
               trigger={
                 <button type="button" className="hover-scrim flex h-9 items-center gap-1 rounded-md border border-dashed border-[color-mix(in_srgb,var(--muted-foreground)_55%,transparent)] px-3 text-sm text-muted-foreground">
-                  <Plus className="h-4 w-4" /> Link note
+                  <Plus className="h-4 w-4" /> {t("noteView.linkNoteButton")}
                 </button>
               }
             >
@@ -124,14 +139,14 @@ export function NoteMeta({
           </div>
           {links.data && links.data.backlinks.length > 0 && (
             <div className="mt-2">
-              <span className="text-xs uppercase text-muted-foreground">Backlinks</span>
+              <span className="text-xs uppercase text-muted-foreground">{t("noteView.backlinks")}</span>
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {/* `back: true` — a backlink is the one link in the app that takes you
                     somewhere you have already been, so the panel plays its swap in
                     reverse rather than pretending this is another step forward. */}
                 {links.data.backlinks.map((b) => (
                   <button key={b.id} onClick={() => openNote(b.id, undefined, { back: true })} className="chip-scrim rounded px-1.5 py-0.5 text-foreground hover:underline">
-                    {b.title || "Untitled"}
+                    {b.title || t("note.untitled")}
                   </button>
                 ))}
               </div>
@@ -144,6 +159,7 @@ export function NoteMeta({
 }
 
 function LinkPicker({ noteId, onPicked, onDone }: { noteId: string; onPicked: (t: { id: string; title: string }) => void; onDone: () => void }) {
+  const t = useT();
   const [q, setQ] = useState("");
   const linkActions = useLinkActions();
   // Title lookup, NOT the app's full-text search. The picker ran on search until it
@@ -166,7 +182,7 @@ function LinkPicker({ noteId, onPicked, onDone }: { noteId: string; onPicked: (t
     // the server deliberately returned — so cmdk is left to do navigation only.
     <Command shouldFilter={false}>
       <CommandInput
-        placeholder="Search a note to link…"
+        placeholder={t("noteView.linkSearch")}
         value={q}
         onValueChange={setQ}
         className="max-sm:h-12 max-sm:text-base"
@@ -179,7 +195,7 @@ function LinkPicker({ noteId, onPicked, onDone }: { noteId: string; onPicked: (t
             onSelect={() => { linkActions.create.mutate({ noteId, targetNoteId: n.id }); onPicked({ id: n.id, title: n.title }); onDone(); }}
             className="max-sm:py-3 max-sm:text-base"
           >
-            <span className="truncate">{n.title || "Untitled"}</span>
+            <span className="truncate">{n.title || t("note.untitled")}</span>
           </CommandItem>
         ))}
         {/* Not CommandEmpty: that renders off cmdk's own filter count, which is not
@@ -190,7 +206,7 @@ function LinkPicker({ noteId, onPicked, onDone }: { noteId: string; onPicked: (t
             as a glitch, which is the opposite of what this line is here to prevent. */}
         {!isPending && results.length === 0 && (
           <p className="px-2 py-2 text-sm text-muted-foreground">
-            {q.trim() ? <>No notes match “{q.trim()}”.</> : "No other notes to link to yet."}
+            {q.trim() ? t("noteView.noMatches", { query: q.trim() }) : t("noteView.noOtherNotes")}
           </p>
         )}
       </CommandList>

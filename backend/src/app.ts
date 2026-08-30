@@ -13,6 +13,7 @@ import { ApiError, type ErrorBody } from "./errors.js";
 import { SESSION_COOKIE, authRequired, verifySession } from "./auth.js";
 import { loadRevocations } from "./lib/sessionRevocation.js";
 import { registerRoutes } from "./routes/index.js";
+import { classifyExistingNotes } from "./lib/classifyExistingNotes.js";
 
 // Endpoints reachable without a session (auth handshake + health check).
 const PUBLIC_PATHS = new Set([
@@ -54,6 +55,26 @@ export function buildApp(): FastifyInstance {
     } catch (err) {
       app.log.error({ err }, "Could not load session revocations — revoked sessions may still be accepted");
     }
+  });
+
+  // Classify notes written before the app knew about languages, once, so search
+  // improves for a library that already exists rather than only for what is written
+  // from today.
+  //
+  // Deliberately NOT awaited. It reads and rewrites every note, which on a large
+  // library is seconds rather than milliseconds, and holding up readiness for it would
+  // leave the app unreachable for that whole time after an update — the one thing a
+  // Lockpad update must never do. A library part-way through the pass is fully usable;
+  // its French notes are simply still searched with English rules, exactly as they were
+  // before the update.
+  //
+  // A failure here is logged and nothing else. The pass is idempotent and resumes on
+  // the next start, and the cost of it never running at all is the search quality that
+  // existed yesterday — not a reason to refuse to serve.
+  app.addHook("onReady", async () => {
+    void classifyExistingNotes(app.log).catch((err) => {
+      app.log.error({ err }, "Could not classify existing notes by language — search keeps its previous behaviour");
+    });
   });
 
   // ── Rate limiting ──────────────────────────────────────────────────────────

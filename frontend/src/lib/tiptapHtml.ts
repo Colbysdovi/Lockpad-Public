@@ -7,6 +7,7 @@
 // `.note-print` print stylesheet targets (task lists, code blocks, etc.).
 
 import { providerById } from "./smartLinkProviders";
+import { tOutsideReact } from "@/lib/i18n";
 
 interface HtmlNode {
   type?: string;
@@ -126,7 +127,7 @@ function renderBlock(node: HtmlNode): string {
       // would resolve is one on this private, self-hosted instance, and a printed
       // page carrying a hyperlink nobody else can follow is worse than plain text.
       const title = typeof node.attrs?.title === "string" ? node.attrs.title.trim() : "";
-      return `<span class="note-link-print">[[${escapeHtml(title || "Untitled")}]]</span>`;
+      return `<span class="note-link-print">[[${escapeHtml(title || tOutsideReact("note.untitled"))}]]</span>`;
     }
     case "bulletList":
       return `<ul>${renderListItems(node)}</ul>`;

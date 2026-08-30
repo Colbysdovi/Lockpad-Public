@@ -4,6 +4,7 @@ import { useLinks } from "@/lib/hooks";
 import { useNoteSheet } from "@/lib/useNoteSheet";
 import { liveHandlersForDom } from "@/lib/editorSession";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 
 /**
  * How a note reference looks inside the editor: a small chip, in the flow of the
@@ -37,6 +38,7 @@ import { cn } from "@/lib/utils";
  * a reader who cannot tell dim terracotta from live terracotta (PRD §5).
  */
 export function NoteLinkView({ node, editor }: NodeViewProps) {
+  const t = useT();
   const targetId = String(node.attrs.noteId ?? "");
   const snapshot = String(node.attrs.title ?? "").trim();
   const { openNote } = useNoteSheet();
@@ -53,7 +55,7 @@ export function NoteLinkView({ node, editor }: NodeViewProps) {
   // flight every chip would otherwise flash struck-through on open, which reads as
   // "all your links are broken" for as long as the request takes.
   const resolved = !links.data || !!target;
-  const label = target?.title?.trim() || snapshot || "Untitled";
+  const label = target?.title?.trim() || snapshot || t("note.untitled");
 
   return (
     <NodeViewWrapper as="span" className="note-link" contentEditable={false}>
@@ -62,8 +64,8 @@ export function NoteLinkView({ node, editor }: NodeViewProps) {
         // A real href so the chip is a link to assistive tech and to a middle-click,
         // and so its accessible name says both what it is and where it goes.
         href={resolved ? `/?note=${targetId}` : undefined}
-        aria-label={resolved ? `Open the note “${label}”` : `“${label}” — this note is no longer linked or no longer exists`}
-        title={resolved ? undefined : "This note was deleted or unlinked"}
+        aria-label={resolved ? t("noteLink.open", { title: label }) : t("noteLink.broken", { title: label })}
+        title={resolved ? undefined : t("noteView.brokenLink")}
         onClick={(e) => {
           if (!resolved) return;
           // Open in the app's own sheet rather than letting the browser navigate:

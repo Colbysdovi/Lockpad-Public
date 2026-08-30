@@ -1,0 +1,112 @@
+# The bug report form.
+#
+# CONTRIBUTING.md already asks for repro steps and the install method. This asks
+# for them in the form itself, so a report arrives with them instead of costing a
+# round trip to go and ask.
+#
+# ── Why the install method is a dropdown ────────────────────────────────────
+#
+# Free text gives you "docker" forty different ways and nothing you can filter on.
+# A dropdown makes "every report from people running prebuilt images" a query
+# rather than an afternoon of reading.
+#
+# ── One option set is deliberately absent ───────────────────────────────────
+#
+# THIS FILE IS PUBLISHED. See packaging/ in CLAUDE.md and the name guard in
+# scripts/publish-public.sh for what may not be named here, and why: those
+# listings have no date, and offering them would advertise installs nobody can
+# perform yet. Add the options the day they go live, not before.
+#
+# NOTE FOR WHOEVER EDITS THIS: that guard only scans `*.md`, and this is YAML, so
+# it will not stop you. The first draft of this very comment named all three and
+# would have shipped them.
+name: Bug report
+description: Something in Lockpad is not working the way it should.
+labels: ["bug"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. The two fields that save the most back-and-forth
+        are **how you installed** and **how you reach Lockpad** — a surprising number
+        of problems turn out to be one or the other.
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: How did you install Lockpad?
+      options:
+        - The install script (./install.sh)
+        - Docker Compose with prebuilt images (docker-compose.public.yml)
+        - Docker Compose built from source (docker-compose.yml)
+        - Something else (please describe below)
+    validations:
+      required: true
+
+  # Not in the original ticket, and here because it is the single most useful
+  # triage question this project has. `window.crypto.subtle` only exists in a
+  # secure context, so per-note locking cannot work over plain http://<ip> — and
+  # it fails by simply not being there, which reads as a bug rather than as a
+  # constraint. Knowing the answer up front turns that whole class of report into
+  # one reply. Drop this field if it proves to be noise.
+  - type: dropdown
+    id: access-method
+    attributes:
+      label: How do you reach Lockpad?
+      options:
+        - Over Tailscale (https://…ts.net)
+        - HTTPS on my own network (docker-compose.lan-tls.yml)
+        - Plain http:// on my own network
+        - localhost on the machine running it
+        - Something else (please describe below)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Lockpad version
+      description: Settings → About shows this.
+      placeholder: v1.0.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-expected
+    attributes:
+      label: What did you expect to happen instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: >-
+        Numbered, from a fresh page load. If it only happens to one note or one
+        folder, say what is different about it.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: >-
+        Browser and OS, screenshots, or the output of `docker compose logs backend`.
+        **Please read anything you paste first** — Lockpad is a single-user app and
+        its logs and screenshots are of your own notes.
+    validations:
+      required: false

@@ -48,9 +48,24 @@ export function Logo({ className }: { className?: string }) {
         <circle cx="16" cy="18.5" r="2" fill="var(--primary-foreground)" />
         <rect x="15.2" y="19" width="1.6" height="4" rx="0.8" fill="var(--primary-foreground)" />
       </motion.svg>
-      {/* Hidden on the very smallest phones (<360px) to leave room for the
+      {/* The wordmark is set in the same serif face as note titles and headings
+          (--font-serif, self-hosted Newsreader) so the app's name and its content
+          read as one typographic identity rather than two unrelated fonts.
+          `font-optical-sizing: auto` lets the variable font pick the shape drawn
+          for this size, matching how the .type-* classes use it.
+
+          Hidden on the very smallest phones (<360px) to leave room for the
           header actions; the padlock alone still identifies the app. */}
-      <span className="hidden text-[17px] font-bold tracking-tight min-[360px]:inline">Lockpad</span>
+      {/* Bold, not semibold. Newsreader is a text face — it is drawn to hold its colour
+          in a paragraph, so at wordmark size the same numeric weight that reads solid in
+          the sans stack comes out noticeably lighter here. The font carries a real
+          200–800 weight axis, so 700 is a true bold cut rather than a synthetic smear. */}
+      <span
+        className="hidden text-[19px] font-bold tracking-[-0.01em] min-[360px]:inline"
+        style={{ fontFamily: "var(--font-serif)", fontOpticalSizing: "auto" }}
+      >
+        Lockpad
+      </span>
     </motion.div>
   );
 }

@@ -12,6 +12,7 @@ import { exportRoutes } from "./export.js";
 import { pinsRoutes } from "./pins.js";
 import { imagesRoutes } from "./images.js";
 import { onboardingRoutes } from "./onboarding.js";
+import { settingsRoutes } from "./settings.js";
 
 // Every route group in the API, mounted under /api.
 //
@@ -31,6 +32,7 @@ import { onboardingRoutes } from "./onboarding.js";
 //   pins       per-page pinned notes
 //   images     the picture bytes embedded in note bodies
 //   onboarding whether this instance has been through the first-run welcome
+//   settings   account-wide interface preferences (the language)
 //
 // Registration order does not matter here — Fastify resolves routes by path, not by
 // declaration order.
@@ -48,4 +50,5 @@ export function registerRoutes(app: FastifyInstance) {
   app.register(pinsRoutes, { prefix: "/api" });
   app.register(imagesRoutes, { prefix: "/api" });
   app.register(onboardingRoutes, { prefix: "/api" });
+  app.register(settingsRoutes, { prefix: "/api" });
 }

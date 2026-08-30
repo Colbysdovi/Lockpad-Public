@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { Logo } from "./Logo";
 import { EASE_FOLLOW } from "@/lib/motion";
+import { useT } from "@/lib/i18n";
 
 // The password gate.
 //
@@ -21,6 +22,7 @@ import { EASE_FOLLOW } from "@/lib/motion";
 // note's passphrase encrypts that note's contents in the browser and is never sent
 // anywhere. Someone who gets past this screen still cannot read a locked note.
 export function LoginScreen() {
+  const t = useT();
   const { login } = useAuth();
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
@@ -35,7 +37,7 @@ export function LoginScreen() {
     try {
       await login(password, remember);
     } catch {
-      setError("Incorrect password.");
+      setError(t("login.incorrect"));
       setPassword("");
     } finally {
       setBusy(false);
@@ -53,16 +55,16 @@ export function LoginScreen() {
       >
         <div className="flex flex-col items-center gap-2 pb-1">
           <Logo />
-          <p className="text-sm text-muted-foreground">Enter your password to unlock.</p>
+          <p className="text-sm text-muted-foreground">{t("login.prompt")}</p>
         </div>
 
         <Input
           type="password"
           autoFocus
-          placeholder="Password"
+          placeholder={t("login.password")}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          aria-label="Password"
+          aria-label={t("login.password")}
           // Match the in-app unlock field (LockPanel): a roomier, touch-friendly
           // password box rather than the compact base input.
           className="h-11 px-3.5 sm:h-10"
@@ -78,11 +80,11 @@ export function LoginScreen() {
             className="h-4 w-4 rounded border-input"
             style={{ accentColor: "var(--primary)" }}
           />
-          Remember me on this device
+          {t("login.remember")}
         </label>
 
         <Button type="submit" disabled={busy || !password} className="h-11 w-full sm:h-10">
-          {busy ? "Unlocking…" : "Unlock"}
+          {busy ? t("login.unlocking") : t("login.unlock")}
         </Button>
       </motion.form>
     </div>

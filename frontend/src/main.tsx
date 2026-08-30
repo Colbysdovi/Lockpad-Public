@@ -6,6 +6,7 @@ import { MotionConfig } from "framer-motion";
 import App from "./App";
 import { AuthProvider } from "./lib/auth";
 import { ToastProvider } from "./lib/useToast";
+import { AppLanguageProvider } from "./lib/i18n/AppLanguageProvider";
 import { TooltipProvider } from "./components/ui/tooltip";
 // Self-hosted Newsreader (variable, optical-size axis) for titles — bundled
 // locally by Vite, NO external/CDN request (preserves the zero-outbound privacy
@@ -43,9 +44,16 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                 ToastProvider and contains a Tooltip (the ✕ "Dismiss"), so it needs
                 the tooltip context in scope. */}
             <TooltipProvider delayDuration={300} skipDelayDuration={500}>
-              <ToastProvider>
-                <App />
-              </ToastProvider>
+              {/* The interface language, and everything that reads it. It sits here
+                  rather than higher because it queries (needs QueryClientProvider)
+                  and asks whether there is a session (needs AuthProvider), and it
+                  sits above ToastProvider because the toast tray renders its own
+                  copy and would otherwise be the one surface left in English. */}
+              <AppLanguageProvider>
+                <ToastProvider>
+                  <App />
+                </ToastProvider>
+              </AppLanguageProvider>
             </TooltipProvider>
           </MotionConfig>
         </BrowserRouter>

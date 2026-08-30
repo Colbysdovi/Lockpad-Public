@@ -37,24 +37,52 @@ export async function searchRoutes(app: FastifyInstance) {
     // ts_headline builds the result snippet, wrapping the matched words in <mark>.
     // That is why the snippet crosses the wire as HTML — and why the client
     // sanitizes it on arrival anyway (see SearchPalette).
+    //
+    // ── Matching documents indexed in two different languages ─────────────────
+    //
+    // Each note's tsvector was built with its own configuration, so a single tsquery
+    // cannot match them all: "verrouillée" stems one way under 'french' and another
+    // under 'english', and a query parsed with the wrong one simply misses. The
+    // matching and ranking clauses below therefore run BOTH configurations and OR
+    // them, each branch paired with the language it belongs to.
+    //
+    // That shape is chosen for the index, not for readability. The obvious
+    // alternative — `websearch_to_tsquery(n."contentLanguage"::regconfig, ${query})` —
+    // is correct and shorter, and it builds a DIFFERENT tsquery for every row, which
+    // means the GIN index on content_tsv cannot be used and every search becomes a
+    // sequential scan over the whole table. It would have passed every correctness
+    // test while quietly breaking the requirement that search not get slower. With two
+    // constant tsqueries the planner can use the index for each branch and combine
+    // them with a bitmap OR.
+    //
+    // ts_headline is exempt and DOES use the dynamic cast, because it runs over rows
+    // the query has already selected — there is no index for it to miss, and taking
+    // the note's own configuration is simply the correct way to segment its snippet.
     const rows = await prisma.$queryRaw<SearchRow[]>`
       SELECT
         n."id",
         n."title",
         ts_headline(
-          'english',
+          n."contentLanguage"::regconfig,
           n."title" || ' ' || coalesce(
             (SELECT string_agg(elem #>> '{}', ' ')
              FROM jsonb_path_query(n."content", 'strict $.**.text') AS elem), ''),
-          websearch_to_tsquery('english', ${query}),
+          websearch_to_tsquery(n."contentLanguage"::regconfig, ${query}),
           'StartSel=<mark>, StopSel=</mark>, MaxFragments=2, MaxWords=20, MinWords=5'
         ) AS snippet,
-        ts_rank(n."content_tsv", websearch_to_tsquery('english', ${query})) AS rank,
+        CASE n."contentLanguage"
+          WHEN 'french' THEN ts_rank(n."content_tsv", websearch_to_tsquery('french', ${query}))
+          ELSE ts_rank(n."content_tsv", websearch_to_tsquery('english', ${query}))
+        END AS rank,
         n."updatedAt"
       FROM "Note" n
       WHERE n."deletedAt" IS NULL
         AND n."isLocked" = false
-        AND n."content_tsv" @@ websearch_to_tsquery('english', ${query})
+        AND (
+          (n."contentLanguage" = 'english' AND n."content_tsv" @@ websearch_to_tsquery('english', ${query}))
+          OR
+          (n."contentLanguage" = 'french' AND n."content_tsv" @@ websearch_to_tsquery('french', ${query}))
+        )
       ORDER BY rank DESC, n."updatedAt" DESC
       LIMIT ${limit}
     `;

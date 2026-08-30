@@ -36,10 +36,46 @@ export function extractPlainText(doc: unknown): string {
   return parts.join(" ").replace(/\s+/g, " ").trim();
 }
 
+/** Cut a string to at most `max` USER-PERCEIVED characters, never mid-character.
+ *
+ *  `String.prototype.slice` counts UTF-16 code units, which is not the same thing as
+ *  characters. Two ways that shows up in a note preview:
+ *
+ *    - An emoji is a surrogate PAIR, so a cut landing between the halves produces a
+ *      lone surrogate and the preview ends in a replacement glyph.
+ *    - An accented letter stored in decomposed form (NFD) is a base letter followed
+ *      by a separate combining mark. A cut between them either drops the accent or
+ *      leaves the mark to attach itself to the ellipsis that follows.
+ *
+ *  Neither breaks anything functionally, and neither would ever be reported — it is
+ *  one wrong-looking character at the end of an already-truncated line. It is here
+ *  because treating French content as first-class means the app should not corrupt
+ *  it in the one place it does arithmetic on text.
+ *
+ *  Intl.Segmenter is built into the runtime, so this costs no dependency. */
+function sliceGraphemes(text: string, max: number): string {
+  // Fast path: no string shorter than the limit in code units can be longer in
+  // graphemes, so most previews never construct a segmenter at all.
+  if (text.length <= max) return text;
+
+  let out = "";
+  let taken = 0;
+  for (const { segment } of graphemes.segment(text)) {
+    if (taken >= max) break;
+    out += segment;
+    taken += 1;
+  }
+  return out;
+}
+
+/** One segmenter, reused. Constructing one per preview would be the expensive part
+ *  of an otherwise trivial function, and a note list asks for a great many. */
+const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
 /** Short plaintext excerpt for list cards. */
 export function makePreview(doc: unknown, max = 200): string {
   const text = extractPlainText(doc);
-  return text.length > max ? text.slice(0, max).trimEnd() + "…" : text;
+  return text.length > max ? sliceGraphemes(text, max).trimEnd() + "…" : text;
 }
 
 // A lightweight, glanceable slice of a note's structure for list cards — enough
@@ -60,7 +96,7 @@ export function makePreviewBlocks(doc: unknown, maxBlocks = 6, maxLen = 140): Pr
   const root = doc as TipTapNode | undefined;
   if (!root || typeof root !== "object" || !Array.isArray(root.content)) return [];
   const blocks: PreviewBlock[] = [];
-  const clip = (s: string) => (s.length > maxLen ? s.slice(0, maxLen).trimEnd() + "…" : s);
+  const clip = (s: string) => (s.length > maxLen ? sliceGraphemes(s, maxLen).trimEnd() + "…" : s);
   const full = () => blocks.length >= maxBlocks;
 
   for (const node of root.content) {

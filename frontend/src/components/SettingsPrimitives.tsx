@@ -33,16 +33,55 @@ import { cn } from "@/lib/utils";
 // them (their `strokeWidth` is a number, SVGProps allows a string).
 type IconComponent = ComponentType<AnimatedIconProps>;
 
-/** A titled group of rows.
+/** A titled group of rows, drawn on its own surface.
  *
  *  The description is not decoration: it is the line that lets someone skip a
  *  whole section without reading the two or three cards inside it, which is the
  *  entire point of grouping them in the first place.
  *
- *  `tone="danger"` colours the heading and gives it a warning glyph. The glyph
- *  matters more than the colour — a red heading alone would say nothing at all to
- *  someone who cannot see the red, and the deletions underneath it are permanent.
- */
+ *  `tone="danger"` colours the heading, gives it a warning glyph, and warms the
+ *  surface. The glyph matters more than the colour — a red heading alone would say
+ *  nothing at all to someone who cannot see the red, and the deletions underneath
+ *  it are permanent.
+ *
+ *  ── Why the surface is mixed rather than a token ────────────────────────────
+ *
+ *  Sections used to be separated by a margin and nothing else, which asked the
+ *  heading alone to carry the grouping. Giving each one a surface means the page
+ *  now has three depths, and they have to stay in that order in BOTH themes:
+ *
+ *      canvas  (the page)  →  section  (this)  →  card  (the rows inside)
+ *
+ *  In this palette elevation reads as LIGHTER in both themes, which is easy to get
+ *  wrong because the instinct in a dark theme is to go darker. Light runs
+ *  #F2EAE0 canvas → #FBF6F0 card; dark runs #241C17 → #322820. Both climb. So the
+ *  section is literally the midpoint of the two surfaces it sits between, and that
+ *  one expression lands correctly either way round without a second definition to
+ *  keep in sync — and if the palette is ever retuned, the midpoint moves with it.
+ *
+ *  A translucent `--scrim` was tried here instead, to buy more contrast against the
+ *  cards. It does, in light. But the scrim inverts by theme, and in dark it lifts
+ *  the section ABOVE the cards it contains (0.036 against the card's 0.023), so the
+ *  container read as more elevated than its own contents. Keeping the ordering
+ *  identical in both themes is worth more than the extra contrast.
+ *
+ *  The exact strength lives in `--settings-well` (index.css) rather than here,
+ *  because the two themes do not want the same amount of it: the light canvas and
+ *  the light card are only a few points apart, so a full half-step there reads as a
+ *  slab, while on dark the same fraction is the difference between a section and
+ *  nothing at all. A token is how every other theme-varying value in this codebase
+ *  is expressed — there is not a single `dark:` variant in the app, and this is not
+ *  the place to introduce the first one.
+ *
+ *  No border, deliberately. The rows inside are already bordered cards, and a
+ *  bordered box holding bordered boxes reads as a table. The tint alone is enough
+ *  to group them, which is the whole ask: quiet separation, not another frame. */
+const SECTION_SURFACE = "bg-[var(--settings-well)]";
+/** The same idea one step warmer: enough destructive in the mix to feel different
+ *  before it is read as red. Mixed against `--canvas` rather than `--card` so it
+ *  reads as the same depth as its neighbours despite the hue shift. */
+const SECTION_SURFACE_DANGER = "bg-[color-mix(in_srgb,var(--destructive)_7%,var(--canvas))]";
+
 export function SettingsSection({
   id,
   title,
@@ -60,7 +99,14 @@ export function SettingsSection({
 }) {
   const danger = tone === "danger";
   return (
-    <section aria-labelledby={id} className={className}>
+    <section
+      aria-labelledby={id}
+      className={cn(
+        "rounded-2xl p-4 sm:p-5",
+        danger ? SECTION_SURFACE_DANGER : SECTION_SURFACE,
+        className
+      )}
+    >
       <h2
         id={id}
         className={cn(

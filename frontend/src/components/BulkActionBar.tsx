@@ -1,15 +1,16 @@
 import { useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Archive, Trash2, FolderInput, Tag as TagIcon, X, Folder as FolderIcon, Hash } from "@/components/icons";
+import { Archive, Trash2, FolderInput, X, Folder as FolderIcon, Hash } from "@/components/icons";
 import { ResponsivePopover } from "@/components/ui/responsive-popover";
 import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import { useBulkAction, useQuietBulkAction, useFolders, useTags, useInvalidateNotes } from "@/lib/hooks";
 import { beginBulkExit } from "@/lib/noteFx";
-import { exitDurationMs, DELETE_BULK_STAGGER_CAP, EASE_FOLLOW } from "@/lib/motion";
+import { exitDurationMs, DELETE_BULK_STAGGER_CAP, EASE_FOLLOW, EASE_FOLLOW_REVERSED, BAR_SWAP_OUT_MS, BAR_SWAP_IN_MS, BAR_SWAP_TRAIL_MS, BAR_SWAP_OFFSCREEN } from "@/lib/motion";
 import { flattenFolders } from "./selectors";
 import { useSelection } from "@/lib/useSelection";
 import { useToast } from "@/lib/useToast";
+import { useT } from "@/lib/i18n";
 
 // What to do with several notes at once.
 //
@@ -32,6 +33,7 @@ import { useToast } from "@/lib/useToast";
 // Every action clears the selection afterwards. Acting on a batch means you are done
 // with that batch; leaving it ticked invites accidentally acting on it twice.
 export function BulkActionBar() {
+  const t = useT();
   const { selectedIds, count, clear } = useSelection();
   const bulk = useBulkAction();
   const quietBulk = useQuietBulkAction();
@@ -47,7 +49,6 @@ export function BulkActionBar() {
 
   // Toast copy names the count, since the cards it refers to have already left the
   // screen by the time it is read.
-  const plural = (n: number) => `${n} note${n === 1 ? "" : "s"}`;
 
   // Archiving or deleting a batch is CHOREOGRAPHED, not just fired.
   //
@@ -87,9 +88,9 @@ export function BulkActionBar() {
     const ids = [...selectedIds];
     if (!ids.length) return;
     playExit("archive", ids, () =>
-      toast(`${plural(ids.length)} archived`, {
+      toast(t("bulk.archived", { count: ids.length }), {
         icon: <Archive className="h-4 w-4" />,
-        action: { label: "Undo", onClick: () => bulk.mutate({ action: "unarchive", ids }) },
+        action: { label: t("common.undo"), onClick: () => bulk.mutate({ action: "unarchive", ids }) },
         reverse: { ids, kind: "archive" },
       })
     );
@@ -98,9 +99,9 @@ export function BulkActionBar() {
     const ids = [...selectedIds];
     if (!ids.length) return;
     playExit("delete", ids, () =>
-      toast(`${plural(ids.length)} moved to Trash`, {
+      toast(t("bulk.trashed", { count: ids.length }), {
         icon: <Trash2 className="h-4 w-4" />,
-        action: { label: "Undo", onClick: () => bulk.mutate({ action: "restore", ids }) },
+        action: { label: t("common.undo"), onClick: () => bulk.mutate({ action: "restore", ids }) },
         reverse: { ids, kind: "delete" },
       })
     );
@@ -110,20 +111,54 @@ export function BulkActionBar() {
   // `folderId: null` is "take these out of any folder", offered as its own row.
   const move = (folderId: string | null, name: string) => {
     const ids = [...selectedIds];
-    bulk.mutate({ action: "move", ids, folderId }, { onSuccess: () => { clear(); toast(`Moved ${plural(ids.length)} to ${name}`); } });
+    bulk.mutate({ action: "move", ids, folderId }, { onSuccess: () => { clear(); toast(t("bulk.moved", { count: ids.length, name })); } });
   };
   const addTag = (tagId: string, name: string) => {
     const ids = [...selectedIds];
-    bulk.mutate({ action: "tag", ids, tagId }, { onSuccess: () => { clear(); toast(`Tagged ${plural(ids.length)} with #${name}`); } });
+    bulk.mutate({ action: "tag", ids, tagId }, { onSuccess: () => { clear(); toast(t("bulk.tagged", { count: ids.length, name })); } });
   };
 
   return (
     <motion.div
-      initial={{ y: 40, opacity: 0 }}
+      // ── Taking the slot, and giving it back ─────────────────────────────────
+      //
+      // This bar and the composer share one absolutely-positioned slot at the bottom
+      // of the list, so appearing here is a HANDOVER rather than an entrance: the
+      // composer drops out of the viewport and this rises from the same edge behind
+      // it, and the whole thing runs backwards when the selection falls below two.
+      //
+      // Which is why it enters from fully below (BAR_SWAP_OFFSCREEN) rather than the
+      // 40px nudge it used to do. A short rise reads as a bar that was always there
+      // and just woke up; the composer, meanwhile, was visibly travelling the full
+      // height of the slot to get out of the way. One of the two had to be wrong,
+      // and it was this one.
+      //
+      // The delay is what stops the two crossing mid-flight. See BAR_SWAP_TRAIL_MS.
+      //
+      // `exit` only runs because ListScreen wraps this in <AnimatePresence> — without
+      // that, unticking a note unmounts the bar instantly and the composer rises into
+      // a slot the bar never left, which looks like the bar was deleted rather than
+      // dismissed.
+      initial={reduceMotion ? { opacity: 0 } : { y: BAR_SWAP_OFFSCREEN, opacity: 1 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.18, ease: EASE_FOLLOW }}
-      // Rises from below on appearance — it is replacing the composer in the same
-      // slot, so it enters the way the composer sits rather than fading in on top.
+      // Leaving is not the entrance played backwards: it takes the OUT curve and the
+      // OUT duration with NO delay, because on the way out this bar is the one
+      // clearing the slot and the composer is the one waiting. Carried on the `exit`
+      // target itself, since that is the only way to give a variant its own timing.
+      exit={
+        reduceMotion
+          ? { opacity: 0 }
+          : {
+              y: BAR_SWAP_OFFSCREEN,
+              opacity: 1,
+              transition: { duration: BAR_SWAP_OUT_MS / 1000, ease: EASE_FOLLOW },
+            }
+      }
+      transition={{
+        duration: BAR_SWAP_IN_MS / 1000,
+        ease: EASE_FOLLOW_REVERSED,
+        delay: BAR_SWAP_TRAIL_MS / 1000,
+      }}
       // `--kb` is the software keyboard's height (see useKeyboardInset): on a phone
       // the bar rides above the keyboard instead of being buried under it.
       style={{ bottom: "var(--kb, 0px)" }}
@@ -132,35 +167,43 @@ export function BulkActionBar() {
       // reachable instead of being blocked by an invisible band.
       className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)_+_1rem)]"
     >
-      <div
-        className="pointer-events-auto flex w-full max-w-2xl flex-wrap items-center gap-1.5 rounded-2xl border border-[rgb(var(--shadow-color)/0.08)] p-2.5 shadow-[0_2px_8px_-2px_rgb(var(--shadow-color)/0.18),0_18px_50px_-12px_rgb(var(--shadow-color)/0.5)] ring-1 ring-[rgb(var(--shadow-color)/0.12)] backdrop-blur-md"
-        style={{ backgroundColor: "color-mix(in srgb, var(--background) 80%, transparent)" }}
-      >
+      {/* Wears the composer's own material — `surface-elevated composer-bar` — rather
+          than a hand-rolled lookalike. It stands in the composer's slot, so it should
+          be the same object, and the copy had drifted: the tint came off `--background`
+          at a hardcoded 80% where the composer tints `--card` at 72%, and the border
+          and ring were both mixed from `--shadow-color`, which is the shadow token and
+          means nothing as an edge colour. Sharing the class also picks up the
+          `prefers-reduced-transparency` opaque fallback the copy never had.
+
+          `p-3` and `gap-2` where the composer uses `p-2.5`: this bar is a row of
+          targets to hit, where the composer is mostly one large text field, so its
+          controls get more room around them. */}
+      <div className="surface-elevated composer-bar pointer-events-auto flex w-full max-w-2xl flex-wrap items-center gap-2 p-3">
         {/* The count is the bar's subject — it names what every button will act on. */}
-        <span className="px-2 text-sm font-semibold">{count} selected</span>
+        <span className="px-2 text-sm font-semibold">{t("bulk.selected", { count })}</span>
         <div className="ml-auto flex flex-wrap items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={archive} disabled={bulk.isPending} className="gap-1.5">
-            <Archive className="h-4 w-4" /> Archive
+          <Button variant="ghost" size="default" onClick={archive} disabled={bulk.isPending} className="gap-1.5">
+            <Archive className="h-4 w-4" /> {t("note.archive")}
           </Button>
 
           <ResponsivePopover
             open={moveOpen}
             onOpenChange={setMoveOpen}
-            title="Move to folder"
+            title={t("bulk.moveToFolder")}
             align="end"
             contentClassName="w-60 p-0"
             trigger={
-              <Button variant="ghost" size="sm" className="gap-1.5">
-                <FolderInput className="h-4 w-4" /> Move
+              <Button variant="ghost" size="default" className="gap-1.5">
+                <FolderInput className="h-4 w-4" /> {t("bulk.move")}
               </Button>
             }
           >
             <Command>
-              <CommandInput placeholder="Move to folder…" className="max-sm:h-12 max-sm:text-base" />
+              <CommandInput placeholder={t("bulk.moveToFolderPlaceholder")} className="max-sm:h-12 max-sm:text-base" />
               <CommandList className="max-h-56 overflow-y-auto p-1 max-sm:max-h-[55vh] max-sm:p-1.5">
-                <CommandEmpty>No folder found.</CommandEmpty>
-                <CommandItem value="__none__ no folder" onSelect={() => move(null, "No folder")} className="max-sm:py-3 max-sm:text-base">
-                  <span className="h-2.5 w-2.5 rounded-full border" /> No folder
+                <CommandEmpty>{t("bulk.noFolder")}</CommandEmpty>
+                <CommandItem value="__none__ no folder" onSelect={() => move(null, t("selector.folder.none"))} className="max-sm:py-3 max-sm:text-base">
+                  <span className="h-2.5 w-2.5 rounded-full border" /> {t("selector.folder.none")}
                 </CommandItem>
                 {flat.map((f) => (
                   <CommandItem key={f.id} value={`${f.name} ${f.id}`} onSelect={() => move(f.id, f.name)} className="max-sm:py-3 max-sm:text-base">
@@ -176,19 +219,24 @@ export function BulkActionBar() {
           <ResponsivePopover
             open={tagOpen}
             onOpenChange={setTagOpen}
-            title="Add tag"
+            title={t("bulk.addTag")}
             align="end"
             contentClassName="w-56 p-0"
             trigger={
-              <Button variant="ghost" size="sm" className="gap-1.5">
-                <TagIcon className="h-4 w-4" /> Tag
+              <Button variant="ghost" size="default" className="gap-1.5">
+                {/* A hash, not a luggage tag. Tags are written `#name` everywhere they
+                    appear — on the cards, in the sidebar, in the tag page's title — and
+                    this trigger was the one place in the app still showing the other
+                    glyph, including directly above its own popover rows, which use a
+                    hash. */}
+                <Hash className="h-4 w-4" /> {t("bulk.tag")}
               </Button>
             }
           >
             <Command>
-              <CommandInput placeholder="Add tag…" className="max-sm:h-12 max-sm:text-base" />
+              <CommandInput placeholder={t("bulk.addTagPlaceholder")} className="max-sm:h-12 max-sm:text-base" />
               <CommandList className="max-h-56 overflow-y-auto p-1 max-sm:max-h-[55vh] max-sm:p-1.5">
-                <CommandEmpty>No tags yet.</CommandEmpty>
+                <CommandEmpty>{t("bulk.noTags")}</CommandEmpty>
                 {(tags.data?.tags ?? []).map((t) => (
                   <CommandItem key={t.id} value={t.name} onSelect={() => addTag(t.id, t.name)} className="max-sm:py-3 max-sm:text-base">
                     <Hash className="h-3.5 w-3.5" /> {t.name}
@@ -198,13 +246,13 @@ export function BulkActionBar() {
             </Command>
           </ResponsivePopover>
 
-          <Button variant="ghost" size="sm" onClick={del} disabled={bulk.isPending} className="gap-1.5 text-destructive hover:text-destructive">
-            <Trash2 className="h-4 w-4" /> Delete
+          <Button variant="ghost" size="default" onClick={del} disabled={bulk.isPending} className="gap-1.5 text-destructive hover:text-destructive">
+            <Trash2 className="h-4 w-4" /> {t("common.delete")}
           </Button>
           {/* The way out. Labelled on desktop, icon-only on phones where horizontal
               room is scarce — the aria-label carries the meaning either way. */}
-          <Button variant="ghost" size="sm" onClick={clear} aria-label="Unselect all" className="gap-1.5">
-            <X className="h-4 w-4" /> <span className="hidden sm:inline">Clear</span>
+          <Button variant="ghost" size="default" onClick={clear} aria-label={t("bulk.unselectAll")} className="gap-1.5">
+            <X className="h-4 w-4" /> <span className="hidden sm:inline">{t("bulk.clear")}</span>
           </Button>
         </div>
       </div>

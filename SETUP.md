@@ -71,6 +71,28 @@ If you pick 2 *and* leave the password blank, the script stops to tell you that 
 your network can read and edit everything. That combination is fine on a network only you
 use; it just should not be a surprise.
 
+### 📱 Question 3: reach it from your phone?
+
+Optional, and the only one you can answer later without re-installing anything —
+re-run the installer any time and it asks again.
+
+Say yes and it sets up [Tailscale](FAQ.md#-what-is-tailscale-and-do-i-need-it) for you:
+a small private network only your own devices can join, so your phone reaches the
+machine at home without anything being exposed to the internet. The one thing the
+script cannot invent is an **auth key**, which is what lets this machine join *your*
+network and nobody else's — it points you at
+[login.tailscale.com](https://login.tailscale.com/admin/settings/keys) to generate one,
+and a single-use key is enough.
+
+From there it does the rest: brings up the Tailscale container, waits for it to join,
+and prints the `https://…ts.net` address alongside your local one.
+
+Say no — or press Enter — and nothing about the install changes.
+
+> If the key has expired or was already used, the script tells you, leaves your notes
+> running and reachable exactly as they were, and clears the bad key so you can re-run
+> and try another. An optional extra is never allowed to cost you the app itself.
+
 ### ✅ When it finishes
 
 It prints the address to open, and the three commands worth keeping: how to watch the logs,
@@ -114,7 +136,9 @@ Two options, and they are not exclusive.
 **Tailscale** — a small private network only your own devices can join, so your phone
 reaches the machine at home without anything being exposed to the internet. This is the
 usual answer, and [FAQ.md](FAQ.md#-what-is-tailscale-and-do-i-need-it) explains it properly.
-The setup lives in [DEPLOY.md §3](DEPLOY.md).
+If you installed with the script, just re-run it and say yes to
+[question 3](#-question-3-reach-it-from-your-phone) — it does the whole setup. Doing it by
+hand, or from a source build, is [DEPLOY.md §3](DEPLOY.md).
 
 **HTTPS on your own network**, with your own certificate — no Tailscale client needed on
 each device, but it only works at home. [DEPLOY.md §9](DEPLOY.md) covers it.

@@ -10,6 +10,7 @@
 // ProseMirror stack.
 
 import { providerById } from "./smartLinkProviders";
+import { tOutsideReact } from "@/lib/i18n";
 
 interface MdNode {
   type?: string;
@@ -169,7 +170,7 @@ function renderBlock(node: MdNode): string {
       // same syntax that creates the link in the first place. The stored snapshot is
       // all an exporter has; it never has a note to resolve against.
       const title = typeof node.attrs?.title === "string" ? node.attrs.title.trim() : "";
-      return `[[${title || "Untitled"}]]`;
+      return `[[${title || tOutsideReact("note.untitled")}]]`;
     }
     case "bulletList":
     case "orderedList":

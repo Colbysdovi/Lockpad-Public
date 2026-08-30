@@ -13,6 +13,7 @@ import { beginLockFx } from "@/lib/noteFx";
 import { dropSessionEditor } from "@/lib/editorSession";
 import { LOCK_BLUR_MS } from "@/lib/motion";
 import type { Note, NoteCard } from "@/lib/types";
+import { useT } from "@/lib/i18n";
 
 export type LockMode = "lock" | "unlock" | "remove" | null;
 
@@ -24,10 +25,11 @@ export type LockMode = "lock" | "unlock" | "remove" | null;
 
 // Inline icon-button triggers (desktop note header).
 export function LockButtons({ note, sessionUnlocked, onOpen }: { note: NoteCard; sessionUnlocked: boolean; onOpen: (m: LockMode) => void }) {
+  const t = useT();
   if (!note.isLocked) {
     return (
-      <Tooltip label="Lock note" side="bottom">
-        <Button variant="ghost" size="icon" onClick={() => onOpen("lock")} aria-label="Lock note" className="h-11 w-11 shrink-0 sm:h-9 sm:w-9">
+      <Tooltip label={t("lock.lockNote")} side="bottom">
+        <Button variant="ghost" size="icon" onClick={() => onOpen("lock")} aria-label={t("lock.lockNote")} className="h-11 w-11 shrink-0 sm:h-9 sm:w-9">
           <Lock className="h-5 w-5 sm:h-4 sm:w-4" />
         </Button>
       </Tooltip>
@@ -36,14 +38,14 @@ export function LockButtons({ note, sessionUnlocked, onOpen }: { note: NoteCard;
   return (
     <div className="flex shrink-0 items-center gap-2">
       {!sessionUnlocked && (
-        <Tooltip label="View content" side="bottom">
-          <Button variant="ghost" size="icon" onClick={() => onOpen("unlock")} aria-label="View content" className="h-11 w-11 shrink-0 sm:h-9 sm:w-9">
+        <Tooltip label={t("lock.viewContent")} side="bottom">
+          <Button variant="ghost" size="icon" onClick={() => onOpen("unlock")} aria-label={t("lock.viewContent")} className="h-11 w-11 shrink-0 sm:h-9 sm:w-9">
             <Eye className="h-5 w-5 sm:h-4 sm:w-4" />
           </Button>
         </Tooltip>
       )}
-      <Tooltip label="Remove lock" side="bottom">
-        <Button variant="ghost" size="icon" onClick={() => onOpen("remove")} aria-label="Remove lock" className="h-11 w-11 shrink-0 sm:h-9 sm:w-9">
+      <Tooltip label={t("lock.remove")} side="bottom">
+        <Button variant="ghost" size="icon" onClick={() => onOpen("remove")} aria-label={t("lock.remove")} className="h-11 w-11 shrink-0 sm:h-9 sm:w-9">
           <LockOpen className="h-5 w-5 sm:h-4 sm:w-4" />
         </Button>
       </Tooltip>
@@ -53,13 +55,14 @@ export function LockButtons({ note, sessionUnlocked, onOpen }: { note: NoteCard;
 
 // Menu-item triggers (mobile "More options" dropdown) — same actions as LockButtons.
 export function LockMenuItems({ note, sessionUnlocked, onOpen }: { note: NoteCard; sessionUnlocked: boolean; onOpen: (m: LockMode) => void }) {
+  const t = useT();
   if (!note.isLocked) {
-    return <ResponsiveMenuItem onSelect={() => onOpen("lock")}><Lock className="mr-2 h-4 w-4" />Lock this note</ResponsiveMenuItem>;
+    return <ResponsiveMenuItem onSelect={() => onOpen("lock")}><Lock className="mr-2 h-4 w-4" />{t("lock.lockThisNote")}</ResponsiveMenuItem>;
   }
   return (
     <>
-      {!sessionUnlocked && <ResponsiveMenuItem onSelect={() => onOpen("unlock")}><Eye className="mr-2 h-4 w-4" />View content</ResponsiveMenuItem>}
-      <ResponsiveMenuItem onSelect={() => onOpen("remove")}><LockOpen className="mr-2 h-4 w-4" />Remove lock</ResponsiveMenuItem>
+      {!sessionUnlocked && <ResponsiveMenuItem onSelect={() => onOpen("unlock")}><Eye className="mr-2 h-4 w-4" />{t("lock.viewContent")}</ResponsiveMenuItem>}
+      <ResponsiveMenuItem onSelect={() => onOpen("remove")}><LockOpen className="mr-2 h-4 w-4" />{t("lock.remove")}</ResponsiveMenuItem>
     </>
   );
 }
@@ -68,6 +71,7 @@ export function LockMenuItems({ note, sessionUnlocked, onOpen }: { note: NoteCar
 // only ciphertext leaves the browser. Session unlock decrypts for viewing without
 // changing the at-rest ciphertext; "Remove lock" restores plaintext server-side.
 export function LockDialog({ note, mode, onModeChange, onSessionUnlock }: { note: NoteCard; mode: LockMode; onModeChange: (m: LockMode) => void; onSessionUnlock: (doc: unknown) => void }) {
+  const t = useT();
   const qc = useQueryClient();
   const [passphrase, setPassphrase] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -147,8 +151,8 @@ export function LockDialog({ note, mode, onModeChange, onSessionUnlock }: { note
         mode === "lock"
           ? error instanceof ImageError
             ? `${error.message} The note was not locked.`
-            : "Failed to lock note."
-          : "Wrong passphrase, or decryption failed."
+            : t("lock.failed")
+          : t("lock.wrongPassphrase")
       );
     } finally {
       setBusy(false);
@@ -161,19 +165,16 @@ export function LockDialog({ note, mode, onModeChange, onSessionUnlock }: { note
         {!canEncrypt ? (
           <>
             <DialogHeader>
-              <DialogTitle>Locking needs a secure connection</DialogTitle>
+              <DialogTitle>{t("lock.insecure.title")}</DialogTitle>
               <DialogDescription>
-                Locking and unlocking encrypt notes right in your browser, which needs a
-                secure (HTTPS) connection. You’ve opened Lockpad over plain HTTP, so the
-                browser has disabled encryption — that’s why it failed, not your passphrase.
+                {t("lock.insecure.body")}
               </DialogDescription>
             </DialogHeader>
             <p className="text-sm text-muted-foreground">
-              Open Lockpad via its HTTPS address (your Tailscale <code>…ts.net</code> URL)
-              to lock or unlock notes.
+              {t("lock.insecure.how")}
             </p>
             <div className="flex justify-end">
-              <Button variant="ghost" onClick={close}>Close</Button>
+              <Button variant="ghost" onClick={close}>{t("common.close")}</Button>
             </div>
           </>
         ) : (
@@ -186,23 +187,23 @@ export function LockDialog({ note, mode, onModeChange, onSessionUnlock }: { note
                   behind. */}
               <DialogTitle>
                 {displayMode === "lock"
-                  ? "Lock this note"
+                  ? t("lock.lockThisNote")
                   : displayMode === "unlock"
-                    ? "View this note for now"
-                    : "Remove the lock permanently"}
+                    ? t("lock.viewForNow")
+                    : t("lock.removePermanently")}
               </DialogTitle>
               <DialogDescription>
                 {displayMode === "lock"
-                  ? "Choose a passphrase. The note is encrypted in your browser — the server never sees your passphrase or the plaintext. If you forget it, the note cannot be recovered."
+                  ? t("lock.body.lock")
                   : displayMode === "unlock"
-                    ? "Enter the passphrase to read this note for the rest of this session. It stays locked and encrypted — nothing about it changes, you won’t be able to edit it, and it closes back up as soon as you reload or close the tab."
-                    : "Enter the passphrase to take the lock off for good. The note goes back to being stored as ordinary text and becomes editable again — so anyone who can open Lockpad can read it. Locking it again afterwards is the only way back."}
+                    ? t("lock.body.unlock")
+                    : t("lock.body.remove")}
               </DialogDescription>
             </DialogHeader>
             <Input
               type="password"
               autoFocus
-              placeholder="Passphrase"
+              placeholder={t("lock.passphrase")}
               value={passphrase}
               onChange={(e) => setPassphrase(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
@@ -210,9 +211,9 @@ export function LockDialog({ note, mode, onModeChange, onSessionUnlock }: { note
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={close} disabled={busy} className="h-11 px-5 sm:h-10">Cancel</Button>
+              <Button variant="ghost" onClick={close} disabled={busy} className="h-11 px-5 sm:h-10">{t("common.cancel")}</Button>
               <Button onClick={submit} disabled={busy || !passphrase} className="h-11 px-6 sm:h-10">
-                {busy ? "Working…" : displayMode === "lock" ? "Lock" : displayMode === "unlock" ? "View content" : "Remove lock"}
+                {busy ? t("lock.working") : displayMode === "lock" ? t("lock.action.lock") : displayMode === "unlock" ? t("lock.viewContent") : t("lock.remove")}
               </Button>
             </div>
           </>

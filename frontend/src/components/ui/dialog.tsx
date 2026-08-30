@@ -3,6 +3,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "@/components/icons";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { tOutsideReact } from "@/lib/i18n";
 
 export const Dialog = DialogPrimitive.Root;
 export const DialogTrigger = DialogPrimitive.Trigger;
@@ -61,10 +62,10 @@ export const DialogContent = React.forwardRef<
         // one. It opens BELOW the button (the default `top` would put it outside the
         // panel, floating on the overlay) and the sr-only label stays: the tooltip is
         // for the eye, that is what a screen reader reads.
-        <Tooltip label="Close" side="bottom">
+        <Tooltip label={tOutsideReact("common.close")} side="bottom">
           <DialogPrimitive.Close className="absolute right-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover-scrim hover:text-foreground sm:h-9 sm:w-9">
             <X className="h-5 w-5 sm:h-4 sm:w-4" />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{tOutsideReact("common.close")}</span>
           </DialogPrimitive.Close>
         </Tooltip>
       )}

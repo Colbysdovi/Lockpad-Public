@@ -11,7 +11,13 @@
 # so there is no separate migrate step to remember.
 #
 #   REGISTRY  override the image source (default: ghcr.io/colbysdovi)
-#   TAG       override the image tag    (default: latest)
+#   TAG       which release to run      (default: latest)
+#
+# That `latest` default is a fallback, not a recommendation. `latest` is rebuilt on
+# every push to main, so an install without a TAG follows whatever was committed most
+# recently and can change on a day nobody chose. install.sh writes a pinned
+# TAG=<release> into .env for exactly that reason; leave it pinned and move it
+# deliberately. See DEPLOY.md §4.
 
 services:
   postgres:

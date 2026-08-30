@@ -20,7 +20,8 @@ import { useIsMobile } from "@/lib/useIsMobile";
 import { useKeyboardInset } from "@/lib/useKeyboardInset";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
-import { EASE_FOLLOW } from "@/lib/motion";
+import { EASE_FOLLOW, SIDEBAR_MS } from "@/lib/motion";
+import { useT } from "@/lib/i18n";
 
 const SIDEBAR_KEY = "lockpad.sidebar.open";
 
@@ -66,6 +67,7 @@ export function Layout() {
   const [searchQuery, setSearchQuery] = useState("");
   const { createNote } = useNewNote();
   const { theme, toggle: toggleTheme } = useTheme();
+  const t = useT();
   const { noteId, closeNote } = useNoteSheet();
   const { status, logout } = useAuth();
   const isMobile = useIsMobile();
@@ -131,12 +133,25 @@ export function Layout() {
           0, so mt collapses to the usual 0.75rem. */}
       <header className="raised-top relative z-30 mx-3 mb-0 mt-[calc(env(safe-area-inset-top)_+_0.75rem)] flex items-center gap-2 rounded-2xl border bg-card px-4 pb-1.5 pt-1.5 shadow-sm sm:pb-4 sm:pt-4">
         {/* One toggle: shows the collapse icon when the sidebar is open and the
-            hamburger when it's hidden — the two are just states of each other. */}
-        <Tooltip label={sidebarOpen ? "Collapse sidebar" : "Open menu"} side="bottom">
+            hamburger when it's hidden — the two are just states of each other.
+
+            One name for the panel, in both directions: "sidebar". It used to be
+            called a menu when closed and a sidebar when open, which asked the
+            reader to work out that the two tooltips were the same control. The
+            keyboard-shortcut reference already said "Show or hide the sidebar",
+            so this is now the only name it has anywhere. "Menu" lost despite the
+            hamburger icon, because this app has several actual menus — the ⋮
+            overflow, the block handle, the slash commands — and reusing the word
+            for the navigation column would collide with all of them.
+
+            Show/Hide rather than Open/Collapse: it is the pairing macOS itself
+            uses for the same control, and "collapse" describes what the
+            animation does rather than what the reader gets. */}
+        <Tooltip label={sidebarOpen ? t("header.sidebar.hide") : t("header.sidebar.show")} side="bottom">
           <motion.button
             {...tap}
             onClick={toggleSidebar}
-            aria-label={sidebarOpen ? "Collapse sidebar" : "Open menu"}
+            aria-label={sidebarOpen ? t("header.sidebar.hide") : t("header.sidebar.show")}
             className="inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover-scrim hover:text-foreground sm:h-9 sm:w-9"
           >
             {sidebarOpen ? <PanelLeftClose className="h-5 w-5 sm:h-4 sm:w-4" /> : <Menu className="h-5 w-5 sm:h-4 sm:w-4" />}
@@ -150,7 +165,7 @@ export function Layout() {
           onClick={() => setSearchOpen(true)}
           className="absolute left-1/2 top-1/2 hidden h-11 w-80 -translate-x-1/2 -translate-y-1/2 items-center gap-2.5 rounded-xl border px-4 text-sm text-muted-foreground transition-colors hover-scrim sm:flex"
         >
-          <Search className="h-4 w-4" /> Search…
+          <Search className="h-4 w-4" /> {t("header.searchPlaceholder")}
           {/* Was hardcoded to "⌘K", which was simply wrong on Windows and Linux —
               the handler above has always accepted Ctrl as well, so the hint
               disagreed with the app for every non-Mac user. It now comes from the
@@ -160,7 +175,7 @@ export function Layout() {
         </button>
         <div className="ml-auto flex items-center gap-1.5">
           {/* Search — icon on phones, part of the inline box on desktop. */}
-          <motion.button {...tap} onClick={() => setSearchOpen(true)} aria-label="Search" className={cn(headerIcon, "inline-flex sm:hidden")}>
+          <motion.button {...tap} onClick={() => setSearchOpen(true)} aria-label={t("header.search")} className={cn(headerIcon, "inline-flex sm:hidden")}>
             <Search className="h-5 w-5" />
           </motion.button>
           {/* Desktop-only inline actions; on phones these move into the ⋮ menu. */}
@@ -169,29 +184,29 @@ export function Layout() {
               omission: a phone has no modifier keys, so the reference would
               document hardware the reader does not have. `hidden sm:inline-flex`
               is the whole of the mobile treatment. */}
-          <Tooltip label="Keyboard shortcuts" side="bottom">
+          <Tooltip label={t("header.shortcuts")} side="bottom">
             <motion.button
               {...tap}
               onClick={() => setShortcutsOpen(true)}
-              aria-label="Keyboard shortcuts"
+              aria-label={t("header.shortcuts")}
               className={cn(headerIcon, "hidden sm:inline-flex")}
             >
               <Keyboard className="h-4 w-4" />
             </motion.button>
           </Tooltip>
-          <Tooltip label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"} side="bottom">
+          <Tooltip label={theme === "dark" ? t("header.theme.toLight") : t("header.theme.toDark")} side="bottom">
             <motion.button
               {...tap}
               onClick={toggleTheme}
-              aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+              aria-label={theme === "dark" ? t("header.theme.toLight") : t("header.theme.toDark")}
               className={cn(headerIcon, "hidden sm:inline-flex")}
             >
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </motion.button>
           </Tooltip>
           {status === "authed" && (
-            <Tooltip label="Sign out" side="bottom">
-              <motion.button {...tap} onClick={() => logout()} aria-label="Sign out" className={cn(headerIcon, "hidden sm:inline-flex")}>
+            <Tooltip label={t("header.signOut")} side="bottom">
+              <motion.button {...tap} onClick={() => logout()} aria-label={t("header.signOut")} className={cn(headerIcon, "hidden sm:inline-flex")}>
                 <LogOut className="h-4 w-4" />
               </motion.button>
             </Tooltip>
@@ -201,17 +216,17 @@ export function Layout() {
               it stays prominent without matching their 44px footprint); grows to an
               icon+label pill on desktop. Still the sole creator on pages that have no
               composer (Archive / Trash / Settings). */}
-          <Button size="sm" onClick={createNote} aria-label="New note" className="ml-0.5 h-9 w-9 gap-1.5 p-0 sm:w-auto sm:px-3">
-            <Plus className="h-[18px] w-[18px] sm:h-4 sm:w-4" /> <span className="hidden sm:inline">New note</span>
+          <Button size="sm" onClick={createNote} aria-label={t("header.newNote")} className="ml-0.5 h-9 w-9 gap-1.5 p-0 sm:w-auto sm:px-3">
+            <Plus className="h-[18px] w-[18px] sm:h-4 sm:w-4" /> <span className="hidden sm:inline">{t("header.newNote")}</span>
           </Button>
           {/* Overflow (phones only): theme, import, sign out. */}
           <ResponsiveMenu
-            title="More actions"
+            title={t("header.more")}
             contentClassName="w-52"
             trigger={
               <button
                 type="button"
-                aria-label="More actions"
+                aria-label={t("header.more")}
                 className={cn(headerIcon, "icon-press inline-flex sm:hidden")}
               >
                 <MoreVertical className="h-5 w-5" />
@@ -220,11 +235,11 @@ export function Layout() {
           >
             <ResponsiveMenuItem onSelect={toggleTheme}>
               {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
-              {theme === "dark" ? "Light theme" : "Dark theme"}
+              {theme === "dark" ? t("header.theme.light") : t("header.theme.dark")}
             </ResponsiveMenuItem>
             {status === "authed" && (
               <ResponsiveMenuItem onSelect={() => logout()}>
-                <LogOut className="mr-2 h-4 w-4" /> Sign out
+                <LogOut className="mr-2 h-4 w-4" /> {t("header.signOut")}
               </ResponsiveMenuItem>
             )}
           </ResponsiveMenu>
@@ -232,18 +247,47 @@ export function Layout() {
       </header>
 
       <div className="relative flex flex-1 overflow-hidden">
-        {/* Desktop: inline collapsible sidebar column. The width animates on a
-            gentle ease-out; a fixed-width inner wrapper keeps the sidebar content
-            from reflowing while the column collapses, so it slides/reveals cleanly
-            instead of squashing its text. */}
+        {/* Desktop: inline collapsible sidebar column. Two animations run together
+            and they do different jobs.
+
+            The OUTER column animates its width between 16rem and 0. Because it is
+            a flex sibling of <main>, that is what moves the page content across —
+            the content is pushed aside by the sidebar rather than resized by some
+            separate rule.
+
+            The INNER wrapper keeps a fixed 16rem width so the sidebar's contents
+            never reflow mid-animation, and slides by its own full width. This is
+            the part that was missing. With the width animating alone, the panel
+            stayed parked at the left edge and the narrowing column simply clipped
+            it from the right — so the sidebar looked permanently present, with the
+            page content sliding over and off it like a lid. Nothing appeared to
+            arrive or leave.
+
+            Translating the inner wrapper by exactly the width the column loses
+            keeps the panel's right edge pinned to the content's left edge for
+            every frame, so the two move as one: the sidebar walks off the left of
+            the viewport and the content follows it in, which is what a reader
+            expects a drawer to do. The 12px gap between them is the sidebar card's
+            own m-3 and is preserved throughout, since both edges travel together.
+
+            The duration and easing MUST stay identical on both. If they drift, the
+            panel and the content separate mid-flight and a gap opens or the card
+            overshoots into the content. */}
         {!isMobile && (
           <div
+            style={{ transitionDuration: `${SIDEBAR_MS}ms` }}
             className={cn(
-              "shrink-0 overflow-hidden transition-[width] duration-300 ease-[var(--ease-follow)]",
+              "shrink-0 overflow-hidden transition-[width] ease-[var(--ease-follow)]",
               sidebarOpen ? "w-64" : "w-0"
             )}
           >
-            <div className="h-full w-64">
+            <div
+              style={{ transitionDuration: `${SIDEBAR_MS}ms` }}
+              className={cn(
+                "h-full w-64 transition-transform ease-[var(--ease-follow)]",
+                sidebarOpen ? "translate-x-0" : "-translate-x-full"
+              )}
+            >
               <Sidebar floating />
             </div>
           </div>
@@ -271,7 +315,8 @@ export function Layout() {
                   initial={{ x: "-100%" }}
                   animate={{ x: 0 }}
                   exit={{ x: "-100%" }}
-                  transition={{ duration: 0.28, ease: EASE_FOLLOW }}
+                  // Same constant as the desktop column: one control, one speed.
+                  transition={{ duration: SIDEBAR_MS / 1000, ease: EASE_FOLLOW }}
                   // A floating rounded panel that slides in from the left, instead of
                   // a flush full-height slab butting against the header. The WRAPPER
                   // itself is the card — rounded, bordered, raised-top highlight,

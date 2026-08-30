@@ -1,0 +1,12 @@
+-- The interface language, stored on the account rather than in the browser.
+--
+-- Nullable with no default, and that is the entire design. NULL means "nobody has
+-- ever chosen", which is the one state that permits the client to read the browser's
+-- preferred language and adopt it. Any non-null value — written by that first
+-- auto-detection, or by the user in Settings — is authoritative from then on, so a
+-- French speaker who deliberately switches to English does not get switched back on
+-- their next visit by a machine signal they did not set.
+--
+-- A DEFAULT would destroy that distinction: every existing row would arrive already
+-- "chosen", and no install that predates this feature would ever auto-detect.
+ALTER TABLE "AppState" ADD COLUMN "uiLanguage" TEXT;

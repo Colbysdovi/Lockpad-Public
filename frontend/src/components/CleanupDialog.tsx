@@ -6,6 +6,7 @@ import { Trash2, Loader2, Check, Hash, Folder } from "@/components/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useUnusedFolders, useUnusedTags, useCleanupActions } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 
 // "Delete unused tags" / "Delete unused folders" — one component for both, because
 // they are the same interaction over two definitions of unused:
@@ -32,6 +33,7 @@ export function CleanupDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const isTags = kind === "tags";
   // Only fetch while the dialog is open — the list is a snapshot taken at open, and
   // the server re-checks every delete anyway (see the cleanup routes), so there is
@@ -59,7 +61,7 @@ export function CleanupDialog({
       // The server re-checks eligibility, so this is the honest path for "someone
       // filed a note in here while the dialog was open" — surface its reason rather
       // than a generic failure, and leave the list to refetch itself.
-      setError(e instanceof Error ? e.message : "That item could no longer be deleted.");
+      setError(e instanceof Error ? e.message : t("cleanup.gone"));
       query.refetch();
     } finally {
       setBusyId(null);
@@ -72,35 +74,34 @@ export function CleanupDialog({
       await bulk.mutateAsync();
       setConfirmOpen(false);
     } catch {
-      setError("Cleanup failed. Please try again.");
+      setError(t("cleanup.failed"));
       setConfirmOpen(false);
     }
   };
 
-  const noun = isTags ? "tag" : "folder";
   const count = items.length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent mobileSheet className="max-w-md gap-4">
         <DialogHeader>
-          <DialogTitle>{isTags ? "Delete unused tags" : "Delete unused folders"}</DialogTitle>
+          <DialogTitle>{isTags ? t("settings.cleanupTags.title") : t("settings.cleanupFolders.title")}</DialogTitle>
           <DialogDescription>
             {isTags
-              ? "Tags that aren’t on a single note — including notes in the archive or the trash. Deleting one changes nothing else in your library."
-              : "Folders with no notes anywhere inside them, at any depth. Deleting one also removes the empty folders nested within it."}
+              ? t("cleanup.tags.description")
+              : t("cleanup.folders.description")}
           </DialogDescription>
         </DialogHeader>
 
         {loading ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">Checking your library…</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">{t("cleanup.checking")}</p>
         ) : count === 0 ? (
           // The empty state is the GOOD outcome here, so it reads as reassurance
           // rather than as an absence.
           <div className="flex flex-col items-center gap-2 py-8 text-center">
             <Check className="h-7 w-7 text-success" />
             <p className="text-sm text-muted-foreground">
-              Nothing to clean up — every {noun} is in use.
+              {isTags ? t("cleanup.tags.nothing") : t("cleanup.folders.nothing")}
             </p>
           </div>
         ) : (
@@ -152,8 +153,13 @@ export function CleanupDialog({
 
             <div className="flex items-center justify-between gap-3 border-t pt-4 max-sm:pt-5">
               <span className="text-sm text-muted-foreground">
-                {count} unused {noun}
-                {count === 1 ? "" : isTags ? "s" : "s"}
+                {/* Two counted entries rather than one with a noun spliced in: the
+                    adjective agrees with its noun in French ("inutilisée" against
+                    "étiquette", "inutilisé" against "dossier"), which a shared string
+                    cannot express. */}
+                {isTags
+                  ? t("cleanup.tags.count", { count })
+                  : t("cleanup.folders.count", { count })}
               </span>
               <Button
                 variant="destructive"
@@ -162,7 +168,7 @@ export function CleanupDialog({
                 className="gap-1.5 max-sm:h-12 max-sm:text-base"
               >
                 <Trash2 className="h-4 w-4" />
-                {bulk.isPending ? "Deleting…" : "Delete all"}
+                {bulk.isPending ? t("cleanup.deleting") : t("cleanup.deleteAll")}
               </Button>
             </div>
           </>
@@ -176,10 +182,10 @@ export function CleanupDialog({
           title={isTags ? `Delete ${count} unused tag${count === 1 ? "" : "s"}?` : `Delete ${count} unused folder${count === 1 ? "" : "s"}?`}
           description={
             isTags
-              ? "These tags are on no notes at all, so no note changes. Tags have no trash — this cannot be undone."
-              : "These folders, and the empty folders inside them, hold no notes anywhere. Folders have no trash — this cannot be undone. No note is moved or deleted."
+              ? t("cleanup.tags.confirm")
+              : t("cleanup.folders.confirm")
           }
-          confirmLabel={bulk.isPending ? "Deleting…" : "Delete permanently"}
+          confirmLabel={bulk.isPending ? t("cleanup.deleting") : t("cleanup.deletePermanently")}
           destructive
           pending={bulk.isPending}
           onConfirm={removeAll}

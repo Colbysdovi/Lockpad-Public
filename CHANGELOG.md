@@ -7,7 +7,7 @@ difference to anyone using the app, it is not in here.
 
 ---
 
-## 🔖 v1.0.0 — "Ganvié" · 2026-08-17
+## 🔖 v1.0.0 — "Ganvié" · 2026-08-30
 
 The first release. Lockpad is a notes app that runs entirely on hardware you own: no
 account, no vendor server, no telemetry, and no outbound network requests in normal
@@ -20,11 +20,19 @@ what the app does.
 
 - **A real rich-text editor.** Headings, bold, italic, strikethrough, highlight, bullet
   and numbered lists, checklists, quotes and code blocks.
+- **Checklists keep finished work in its place.** Tick something and it folds away into
+  a summary directly beneath its own checklist, rather than dropping to a pile at the
+  foot of the note, away from the list it belongs to. Open the fold to see what you have
+  done; untick anything and it goes back to its own position, not the end. The boxes are
+  sized for a fingertip on a phone.
 - **Pictures in your notes.** Paste or insert an image and it lives in the note. Large
   photographs are downscaled in your browser before they are ever sent, so a phone
   snapshot does not become a 12MB note.
 - **Notes can point at each other.** Link one note to another and follow it; the note you
   linked to shows the connection back, so you can find your way in either direction.
+- **A quick-note bar that lets you keep going.** Type at the bottom of any list and
+  press Enter: the note is created and you stay where you are, ready for the next
+  thought. `⌘Enter` creates it and opens it. `Shift+Enter` adds a line without saving.
 - **Keyboard shortcuts**, with a dialog that lists them (`⌘⇧S`) rather than expecting you
   to memorise them.
 
@@ -40,7 +48,12 @@ what the app does.
   tag independently — pinning something to the top of one list does not clutter the
   others.
 - **Select several notes at once** and archive, delete, move or tag them in one action.
-- **Duplicate a note** when you want to reuse its shape.
+- **Duplicate a note** when you want to reuse its shape. The copy appears directly
+  beside the original rather than jumping to the top of the list, and it keeps the pins
+  the original had, so it is where you would look for it.
+- **Rename tags and folders**, with a warning if the name is already taken. Names that
+  differ only in capitalisation or spacing count as taken — two tags you cannot tell
+  apart in a list are not two tags.
 - **Tidy up.** Settings can delete folders and tags nothing is using any more, so the
   sidebar does not silently accumulate.
 
@@ -58,6 +71,24 @@ what the app does.
 - **Per-note export** as Markdown or PDF.
 - **Import from elsewhere.** Google Keep, Evernote and Obsidian, with a preview of what
   will be created before anything is written.
+
+### 🌐 Language
+
+- **The interface speaks English and French** — menus, settings, dialogs, notifications,
+  the first-run walkthrough and the sign-in screen.
+- **Guessed once, then never argued about.** On a fresh install your browser's preferred
+  language is read and adopted. After that your own choice wins: pick English on a French
+  machine and it stays English on every visit, whatever the browser keeps saying.
+- **Changed in Settings, and stored with the account** rather than with the browser, so it
+  follows you to any device you sign in from. Both languages are always on screen at once,
+  each written in its own language — a dropdown would hide the way out from the one person
+  most likely to need it, someone looking at an interface they cannot read.
+- **Notes are searched in the language they are written in.** Each note records its own
+  language, and full-text search stems accordingly, so searching a French note matches the
+  other forms of a French word. Notes too short to tell from are treated as English, where
+  stemming has almost nothing to do anyway.
+- **Switching takes a moment on purpose.** The app blurs for a little over a second and
+  comes back already translated, instead of flickering through the change word by word.
 
 ### 🔒 Privacy, concretely
 
@@ -80,7 +111,12 @@ what the app does.
 ### 🐳 Running it
 
 - **One command to install it**, or build it from source if you would rather read the
-  code on the way past.
+  code on the way past. The installer asks whether you want to reach Lockpad from your
+  phone and sets up Tailscale for you if you say yes — and if that part fails, it says so
+  and leaves the app you just installed running.
+- **Your install stays on the version you installed.** It is pinned to a release, so the
+  app does not change underneath you on a day you did not choose. Updating is deliberate:
+  edit one line in `.env` and pull.
 - **Updates apply their own database migrations.** Pull the new images and restart; there
   is no manual migration step to remember or get wrong.
 - **Backup and restore scripts** that round-trip your Postgres data.

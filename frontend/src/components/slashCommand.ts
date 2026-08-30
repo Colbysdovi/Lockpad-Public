@@ -18,6 +18,7 @@ import { Extension } from "@tiptap/core";
 import Suggestion from "@tiptap/suggestion";
 import type { Editor, Range } from "@tiptap/core";
 import { NODES, type IconName } from "@/components/icons/nodes";
+import { tOutsideReact, type MessageKey } from "@/lib/i18n";
 
 // Build an inline SVG string from the shared lucide node geometry (same icons the
 // toolbar uses) so the plain-DOM menu can show an icon before each label without a
@@ -33,7 +34,10 @@ function iconSvg(name: IconName): string {
  *  "/query", so each command can delete the trigger and apply itself in a single
  *  chain — otherwise the "/" would be left behind in the text. */
 interface Item {
-  title: string;
+  /** A CATALOGUE KEY. The item table is module-level constant data, so English
+   *  stored here would be frozen in whatever language was active at import. The
+   *  label is resolved where the menu is drawn instead. */
+  titleKey: MessageKey;
   icon: IconName;
   group: string; // adjacent items sharing a group render without a divider between
   run: (editor: Editor, range: Range) => void;
@@ -42,25 +46,25 @@ interface Item {
 // Grouped: headings · lists · blocks · inline formatting. Icons reuse the toolbar's
 // glyphs so the same action reads the same everywhere.
 const ITEMS: Item[] = [
-  { title: "Heading 1", icon: "Heading1", group: "heading", run: (e, r) => e.chain().focus().deleteRange(r).toggleHeading({ level: 1 }).run() },
-  { title: "Heading 2", icon: "Heading2", group: "heading", run: (e, r) => e.chain().focus().deleteRange(r).toggleHeading({ level: 2 }).run() },
-  { title: "Heading 3", icon: "Heading3", group: "heading", run: (e, r) => e.chain().focus().deleteRange(r).toggleHeading({ level: 3 }).run() },
-  { title: "Bullet list", icon: "List", group: "list", run: (e, r) => e.chain().focus().deleteRange(r).toggleBulletList().run() },
-  { title: "Numbered list", icon: "ListOrdered", group: "list", run: (e, r) => e.chain().focus().deleteRange(r).toggleOrderedList().run() },
-  { title: "Checklist", icon: "ListChecks", group: "list", run: (e, r) => e.chain().focus().deleteRange(r).toggleTaskList().run() },
-  { title: "Quote", icon: "Quote", group: "block", run: (e, r) => e.chain().focus().deleteRange(r).toggleBlockquote().run() },
-  { title: "Code block", icon: "SquareCode", group: "block", run: (e, r) => e.chain().focus().deleteRange(r).toggleCodeBlock().run() },
+  { titleKey: "editor.heading1", icon: "Heading1", group: "heading", run: (e, r) => e.chain().focus().deleteRange(r).toggleHeading({ level: 1 }).run() },
+  { titleKey: "editor.heading2", icon: "Heading2", group: "heading", run: (e, r) => e.chain().focus().deleteRange(r).toggleHeading({ level: 2 }).run() },
+  { titleKey: "editor.heading3", icon: "Heading3", group: "heading", run: (e, r) => e.chain().focus().deleteRange(r).toggleHeading({ level: 3 }).run() },
+  { titleKey: "editor.bulletList", icon: "List", group: "list", run: (e, r) => e.chain().focus().deleteRange(r).toggleBulletList().run() },
+  { titleKey: "editor.numberedList", icon: "ListOrdered", group: "list", run: (e, r) => e.chain().focus().deleteRange(r).toggleOrderedList().run() },
+  { titleKey: "editor.checklist", icon: "ListChecks", group: "list", run: (e, r) => e.chain().focus().deleteRange(r).toggleTaskList().run() },
+  { titleKey: "editor.quote", icon: "Quote", group: "block", run: (e, r) => e.chain().focus().deleteRange(r).toggleBlockquote().run() },
+  { titleKey: "editor.codeBlock", icon: "SquareCode", group: "block", run: (e, r) => e.chain().focus().deleteRange(r).toggleCodeBlock().run() },
   // A divider is only ever inserted AT the cursor — there is no selection to
   // toggle it over — which is why it lives here and has no toolbar button. It has
   // existed in the document model all along (StarterKit ships it) but was reachable
   // only by typing three dashes from memory.
-  { title: "Divider", icon: "Minus", group: "block", run: (e, r) => e.chain().focus().deleteRange(r).setHorizontalRule().run() },
-  { title: "Image", icon: "Image", group: "block", run: (e, r) => e.chain().focus().deleteRange(r).pickImage().run() },
+  { titleKey: "editor.divider", icon: "Minus", group: "block", run: (e, r) => e.chain().focus().deleteRange(r).setHorizontalRule().run() },
+  { titleKey: "editor.image", icon: "Image", group: "block", run: (e, r) => e.chain().focus().deleteRange(r).pickImage().run() },
   // Strikethrough is a MARK, not a block, so choosing it here with nothing selected
   // simply arms it: the next thing typed comes out struck through. That matches how
   // the markdown shortcut (~~…~~) already behaved, and gives the action a home for
   // anyone who reaches for "/" before reaching for the toolbar.
-  { title: "Strikethrough", icon: "Strikethrough", group: "format", run: (e, r) => e.chain().focus().deleteRange(r).toggleStrike().run() },
+  { titleKey: "editor.strikethrough", icon: "Strikethrough", group: "format", run: (e, r) => e.chain().focus().deleteRange(r).toggleStrike().run() },
 ];
 
 export const SlashCommand = Extension.create({
@@ -94,7 +98,7 @@ export const SlashCommand = Extension.create({
           (i === selected ? "bg-accent" : "");
         b.innerHTML =
           `<span class="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground">${iconSvg(item.icon)}</span>` +
-          `<span>${item.title}</span>`;
+          `<span>${tOutsideReact(item.titleKey)}</span>`;
         b.onmousedown = (ev) => {
           ev.preventDefault();
           cmd?.(item);
@@ -119,12 +123,14 @@ export const SlashCommand = Extension.create({
         startOfLine: false,
         command: ({ editor, range, props }) => (props as Item).run(editor, range),
         items: ({ query, editor }) =>
-          ITEMS.filter((i) => i.title.toLowerCase().includes(query.toLowerCase()))
+          // Filtered on the TRANSLATED label, so typing "/tit" finds "Titre 1" in French.
+          // Matching the key would mean the menu only ever searched in English.
+          ITEMS.filter((i) => tOutsideReact(i.titleKey).toLowerCase().includes(query.toLowerCase()))
             // Images upload to a note, so a surface with no note behind it (the quick
             // composer) must not offer the action — an entry that silently does
             // nothing is worse than no entry. The uploader's presence in editor
             // storage is what says whether there is somewhere to upload to.
-            .filter((i) => i.title !== "Image" || !!editor.storage.image?.upload),
+            .filter((i) => i.titleKey !== "editor.image" || !!editor.storage.image?.upload),
         render: () => ({
           onStart: (props) => {
             selected = 0;

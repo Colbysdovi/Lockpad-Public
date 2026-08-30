@@ -3,6 +3,7 @@ import { ExternalLink } from "@/components/icons";
 import { SettingsSection, InfoBlock } from "@/components/SettingsPrimitives";
 import { api } from "@/lib/api";
 import { APP_VERSION, IS_RELEASE, RELEASES_URL, VERSION_LABEL } from "@/lib/version";
+import { useT, withSlots, SLOT } from "@/lib/i18n";
 
 // Settings → About.
 //
@@ -22,6 +23,7 @@ interface Health {
 }
 
 export function AboutSettings() {
+  const t = useT();
   // The frontend knows its own version at build time; the backend's has to be
   // asked for. They are built and published together, so they normally agree —
   // when they don't, someone pulled one image and not the other, and that is
@@ -41,9 +43,8 @@ export function AboutSettings() {
   return (
     <SettingsSection
       id="about-heading"
-      title="About"
-      description="What this instance is running, and where newer versions are announced."
-      className="mt-10"
+      title={t("settings.about.title")}
+      description={t("settings.about.description")}
     >
       {/* Plain text, no card, no button — because there is nothing here to do.
           Everything else on this page that wears a border does something when you
@@ -54,8 +55,8 @@ export function AboutSettings() {
       <InfoBlock title={<>Lockpad {VERSION_LABEL}</>}>
         <p>
           {IS_RELEASE
-            ? "Quote this version if you report a problem — it points at exactly this code."
-            : "Built from source rather than from a tagged release, so there is no release number to give."}
+            ? t("settings.about.tagged")
+            : t("settings.about.fromSource")}
         </p>
 
         {/* A half-finished update: the two images are published together, so a
@@ -63,8 +64,14 @@ export function AboutSettings() {
             is what turns a confusing bug report into an obvious fix. */}
         {mismatched && (
           <p className="mt-2 rounded-lg border border-[color-mix(in_srgb,var(--muted-foreground)_35%,transparent)] bg-[color-mix(in_srgb,var(--muted)_50%,transparent)] p-2">
-            The server is running <span className="font-medium">{serverVersion}</span> while this page came from{" "}
-            <span className="font-medium">{APP_VERSION}</span>. Pull both images and restart so they match.
+            {/* Two version numbers inside one sentence, so the sentence is a single
+                catalogue string with both as placeholders and the emphasis dropped in
+                where the language put them. */}
+            {withSlots(
+              t("settings.about.mismatch", { server: SLOT, client: SLOT }),
+              <span className="font-medium">{serverVersion}</span>,
+              <span className="font-medium">{APP_VERSION}</span>
+            )}
           </p>
         )}
 
@@ -77,12 +84,12 @@ export function AboutSettings() {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 font-medium text-foreground underline underline-offset-4 hover:text-primary"
           >
-            <ExternalLink className="h-3.5 w-3.5" /> Releases on GitHub
+            <ExternalLink className="h-3.5 w-3.5" /> {t("settings.about.releases")}
           </a>
         </p>
 
         <p className="mt-2 text-xs">
-          Lockpad itself never checks for updates and makes no outbound requests of any kind.
+          {t("settings.about.noChecks")}
         </p>
       </InfoBlock>
     </SettingsSection>

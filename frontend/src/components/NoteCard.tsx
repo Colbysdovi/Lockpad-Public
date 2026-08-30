@@ -17,7 +17,7 @@ import { useLongPress } from "@/lib/useLongPress";
 import { useToast } from "@/lib/useToast";
 import { api } from "@/lib/api";
 import { exportNoteAsMarkdown, exportNoteAsPdf } from "@/lib/noteExport";
-import { useNoteHighlight, useLandingHidden, useReflowFlip, useLockFx, flyCard, landFly, highlightNote, findCardEl, findLandingEl, rectOf, takeReturn, useBulkExit, markLanding, revealLanding, type FlyRect, type UndoKind } from "@/lib/noteFx";
+import { useNoteHighlight, useLandingHidden, useReflowFlip, useLockFx, flyCard, landFly, highlightNote, findCardEl, findLandingEl, rectOf, takeReturn, useBulkExit, markLanding, revealLanding, deferReflow, holdReflow, releaseReflow, type FlyRect, type UndoKind } from "@/lib/noteFx";
 import {
   EASE_END,
   EASE_FOLLOW,
@@ -28,7 +28,12 @@ import {
   DELETE_HOLD_MS,
   DELETE_PEEL_MS,
   REDUCED_FADE_MS,
-  REFLOW_MS,
+  REFLOW_TRAIL_MS,
+  REFLOW_AFTER_LAUNCH_MS,
+  SETTLE_IN_PLACE_PX,
+  flyDistance,
+  flyDurationMs,
+  settleDelayMs,
   ACCENT_DRAW_MS,
   ACCENT_ERASE_MS,
   LOCK_BLUR_MS,
@@ -45,17 +50,23 @@ import {
   undoDurationMs,
 } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { useT, useFormat } from "@/lib/i18n";
 
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const min = Math.round(diff / 60000);
-  if (min < 1) return "just now";
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.round(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  const day = Math.round(hr / 24);
-  if (day < 30) return `${day}d ago`;
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+// Recency on a card, in the reader's language.
+//
+// This used to build "3h ago" by concatenating an English suffix onto a number, and
+// fell back to toLocaleDateString(undefined, …) — the browser's locale — past thirty
+// days. Both are wrong once there is a second language: French puts the marker in
+// front ("il y a 3 h"), and `undefined` asks the machine rather than the person.
+//
+// The thresholds are unchanged, so a card shows the same granularity it always did;
+// only the phrasing now comes from the language.
+function useRelativeTime(): (iso: string) => string {
+  const format = useFormat();
+  return (iso: string) => {
+    const day = (Date.now() - new Date(iso).getTime()) / 86400000;
+    return day < 30 ? format.relativeTime(iso) : format.shortDate(iso);
+  };
 }
 
 // One icon button in the bottom action bar.
@@ -111,6 +122,8 @@ export function NoteCard({
   scope?: string;
   pinned?: boolean;
 }) {
+  const t = useT();
+  const relativeTime = useRelativeTime();
   const actions = useNoteAction();
   const quiet = useQuietNoteActions();
   const duplicate = useDuplicateNote();
@@ -258,9 +271,9 @@ export function NoteCard({
   const del = () => {
     if (exiting) return; // a second click mid-exit must not restart the peel
     playExit("delete", quiet.del(note.id), () =>
-      toast("Note moved to Trash", {
+      toast(t("note.movedToTrash"), {
         icon: <Trash2 className="h-4 w-4" />,
-        action: { label: "Undo", onClick: () => actions.restore.mutate(note.id) },
+        action: { label: t("common.undo"), onClick: () => actions.restore.mutate(note.id) },
         reverse: { ids: [note.id], kind: "delete" },
       })
     );
@@ -268,9 +281,9 @@ export function NoteCard({
   const archive = () => {
     if (exiting) return;
     playExit("archive", quiet.archive(note.id), () =>
-      toast("Note archived", {
+      toast(t("note.archived"), {
         icon: <Archive className="h-4 w-4" />,
-        action: { label: "Undo", onClick: () => actions.unarchive.mutate(note.id) },
+        action: { label: t("common.undo"), onClick: () => actions.unarchive.mutate(note.id) },
         reverse: { ids: [note.id], kind: "archive" },
       })
     );
@@ -283,17 +296,11 @@ export function NoteCard({
   const settleInto = (
     targetId: string,
     from: FlyRect | null,
-    html: string,
     kind: "lift" | "stack",
-    // Set when the SOURCE card survives the action (duplicate keeps its original).
-    // The insertion re-lays out the list, so the rect captured on click is stale by
-    // the time the clone launches — the flight would start from empty space, or from
-    // on top of whichever card had since moved into that slot.
-    sourceId?: string,
-    // Set when a clone was already picked up at click time (pin). Then there is no
-    // waiting to do: it is holding the card's place right now and just needs its
-    // destination. Only duplicate, whose original never leaves the screen, can
-    // afford to let the list rearrange first and launch afterwards.
+    // The clone that was picked up on the click and is waiting in the air right now.
+    // Both travelling actions launch this way: the copy (or the card being pinned)
+    // leaves its origin the moment it is asked to, and only needs telling where it
+    // ended up. Null under reduced motion, where nothing flies at all.
     heldFlightId?: number | null,
   ) => {
     // Claim the destination BEFORE anything can render it. Its card still mounts on
@@ -309,76 +316,122 @@ export function NoteCard({
     // POLL for it rather than guessing a delay — a fixed timeout races the network
     // and silently drops the travel animation when the refetch is a little slow.
     const deadline = performance.now() + 800;
+    const POLL_MS = 16;
     const attempt = () => {
       // While a clone is in the air the destination is the card holding the landing,
       // NOT merely the first card with this id — during pin/unpin the source is still
       // on screen and shares the id.
       const destEl = willFly ? findLandingEl(targetId) : findCardEl(targetId);
       if (!destEl) {
-        if (performance.now() < deadline) requestAnimationFrame(attempt);
+        if (performance.now() < deadline) window.setTimeout(attempt, POLL_MS);
         else {
           revealLanding(targetId); // never strand an invisible card
           if (heldFlightId != null) landFly(heldFlightId, null); // nor a held clone
+          releaseReflow(0); // nor a grid frozen waiting for a flight that gave up
         }
         return;
       }
-      // A held clone is covering the card's place RIGHT NOW, so the destination has
-      // to be measured immediately and its geometry has to be final — a smooth
-      // scroll would keep the target drifting under a clone already on its way.
-      // Duplicate has nothing in the air yet and can afford to scroll gently.
-      destEl.scrollIntoView({
-        behavior: reduceMotion || heldFlightId != null ? "auto" : "smooth",
-        block: "nearest",
-      });
+      // A clone is covering the card's place RIGHT NOW, so the destination has to be
+      // measured immediately and its geometry has to be final — a smooth scroll
+      // would keep the target drifting under a clone already on its way.
+      destEl.scrollIntoView({ behavior: "auto", block: "nearest" });
       // The pulse is a colour change, not motion, so it runs in BOTH modes — under
       // reduced motion it is the only cue that the card moved. It fires once the card
       // has SETTLED (after the clone lands), which also clears the mount race: the
       // arriving card's highlight listener is registered by then.
       if (!willFly) {
+        releaseReflow(0);
         window.setTimeout(() => highlightNote(targetId), 60);
         return;
       }
-      if (heldFlightId != null) {
-        // Phase two: hand the waiting clone its destination. No delay — it has been
-        // standing in for the card since the click and must keep doing so until it
-        // arrives, or the note is missing from the screen in between.
-        landFly(heldFlightId, rectOf(destEl));
-        window.setTimeout(() => revealLanding(targetId), flyRevealMs(kind));
-        window.setTimeout(() => highlightNote(targetId), flyHighlightMs(kind));
-        return;
-      }
-      // Launch only once the list has finished opening the slot: the reflow is its
-      // own beat (cards slide over to make room), and the travel reads as a non
-      // sequitur if it starts while everything is still moving. Measuring here also
-      // means the clone lands on the real card — the hidden card still has full
-      // geometry, which is why it is `visibility: hidden` and not unmounted.
+      if (heldFlightId == null) { releaseReflow(0); revealLanding(targetId); return; }
+      // Hand the waiting clone its destination, with no delay: it has been standing
+      // in for the card since the click and must keep doing so until it arrives, or
+      // the note is missing from the screen in between.
+      //
+      // The rect is read off the destination card itself, which is safe even though
+      // the list is mid-reflow around it: a NEWLY inserted card was not in the
+      // reflow snapshot, so it never FLIPs, so it is already sitting at its final
+      // position while its neighbours are still sliding towards theirs. That is
+      // exactly the geometry the clone needs — where the slot will be, not where the
+      // list currently looks. (The card is `visibility: hidden` rather than
+      // unmounted precisely so it still has geometry to read.)
+      const to = rectOf(destEl);
+      // Whoever has further to go moves first. A copy with a real journey ahead of it
+      // sets off at once and the list opens as it comes; a copy already hovering over
+      // its slot waits, lifted, while the original slides out from under it, and only
+      // then comes down. settleDelayMs decides which of those this is.
+      const distance = flyDistance(from!, to);
+      const ms = flyDurationMs(kind, distance);
+      // The list has been holding still, waiting for exactly this moment (see
+      // holdReflow). Let it go now, timed against the journey rather than against the
+      // network: the card sets off, and a beat later the grid starts clearing its
+      // path, finishing as the card touches down.
+      //
+      // A settle IN PLACE is the one case that runs the other way round. There is no
+      // journey to lead with, so the list has to move FIRST and the card comes down
+      // into the space it just opened — which is what settleDelayMs below is waiting
+      // for. Releasing immediately is what gives it something to wait for.
+      releaseReflow(distance <= SETTLE_IN_PLACE_PX ? 0 : REFLOW_AFTER_LAUNCH_MS);
       window.setTimeout(() => {
-        const el = findCardEl(targetId);
-        if (!el) { revealLanding(targetId); return; }
-        const srcEl = sourceId ? findCardEl(sourceId) : null;
-        flyCard({ html, from: srcEl ? rectOf(srcEl) : from!, to: rectOf(el), kind });
-        // Hand over while the clone is dissolving rather than after it has gone: the
-        // clone holds full opacity until ~86% of its flight, so revealing the real
-        // card there is a crossfade, not a blink with a one-frame gap.
-        window.setTimeout(() => revealLanding(targetId), flyRevealMs(kind));
-        window.setTimeout(() => highlightNote(targetId), flyHighlightMs(kind));
-      }, REFLOW_MS + 60);
+        // Re-measure rather than trusting the rect from before the wait: the list has
+        // been rearranging in the meantime, and a stale target would drop the card
+        // slightly off its slot.
+        const el = findLandingEl(targetId) ?? findCardEl(targetId);
+        const at = el ? rectOf(el) : to;
+        if (kind === "stack") {
+          // Duplicate hands over rather than dissolving: the overlay reveals the real
+          // card the moment this clone has genuinely arrived, then drops the clone a
+          // frame later. Nothing here schedules the handover, because the settle runs
+          // on a spring and there is no honest number to schedule it against.
+          landFly(heldFlightId, at, { ms, reveal: targetId });
+          return;
+        }
+        // Pin keeps the crossfade it has always had, on its own timers (PRD §3.6).
+        // The clone holds full opacity until ~86% of its flight, so revealing the real
+        // card there is a crossfade rather than a blink with a one-frame gap.
+        landFly(heldFlightId, at, { ms });
+        window.setTimeout(() => revealLanding(targetId), flyRevealMs(ms));
+        window.setTimeout(() => highlightNote(targetId), flyHighlightMs(ms));
+      }, settleDelayMs(distance));
     };
-    requestAnimationFrame(attempt);
+    // A TIMER, not requestAnimationFrame. rAF does not fire at all while the page is
+    // hidden, and this poll is what reveals the destination card and lands the clone —
+    // so duplicating a note and immediately switching tabs used to leave the card
+    // permanently invisible and a clone stranded on the overlay, with nothing able to
+    // recover either. Measured: still hidden and still stranded 2.2s after the click.
+    // A timer is throttled in a background tab rather than stopped, so the sequence
+    // always completes; while the page is visible 16ms is a frame anyway.
+    window.setTimeout(attempt, POLL_MS);
   };
 
-  // Duplicate: "stack and slide" (micro-interactions-duplicate-prd.md). The copy is
-  // NOT opened any more — the user stays in the list and sees where it landed. A
-  // clone of this card is drawn overlapping the original like a copy on a stack,
-  // then travels to wherever the new card actually rendered, which finally pulses.
+  // Duplicate: the copy leaves first, and the list gets out of its way afterwards.
+  // The copy is NOT opened — the user stays in the list and watches where it landed.
+  //
+  // Order is the entire point of this one. The list used to open the gap first and
+  // drop the copy in once it was ready, which reads as two unrelated events: a space
+  // appears, then something arrives to fill it. Nothing behaves that way. So the
+  // clone is picked up on the CLICK, before the request has even gone out — the copy
+  // visibly leaves its original — and the reflow is told to trail it, so the
+  // neighbours hold still until it is under way and then slide because it is coming.
   const dupe = () => {
     const sourceEl = cardRef.current;
     const from = sourceEl ? rectOf(sourceEl) : null;
     const html = sourceEl?.innerHTML ?? "";
-    // The grid is snapshotted for us by the mutation's own cache reconcile (see
-    // useInvalidateNotes), so every card slides to its new slot rather than jumping.
+    const heldFlightId = from && !reduceMotion ? flyCard({ html, from, to: null, kind: "stack" }) : null;
+    // Set before the request, because the reflow is captured by the mutation's own
+    // cache reconcile (useInvalidateNotes) the instant the server answers — which is
+    // before anything here gets to run again.
+    if (heldFlightId != null) deferReflow(REFLOW_TRAIL_MS);
     duplicate.mutate(note.id, {
-      onSuccess: (copy) => settleInto(copy.id, from, html, "stack", note.id),
+      onSuccess: (copy) => settleInto(copy.id, from, "stack", heldFlightId),
+      onError: () => {
+        // Nothing was inserted, so nothing will reflow — hand the delay back rather
+        // than leaving it primed for whichever unrelated action captures next. The
+        // clone fades where it stands instead of flying to a slot that never existed.
+        deferReflow(0);
+        if (heldFlightId != null) landFly(heldFlightId, null);
+      },
     });
   };
 
@@ -394,7 +447,7 @@ export function NoteCard({
       const full = await qc.fetchQuery({ queryKey: ["note", note.id], queryFn: () => api.get<Note>(`/notes/${note.id}`) });
       await fn(full);
     } catch {
-      toast("Could not export note", { kind: "error" });
+      toast(t("note.export.failed"), { kind: "error" });
     }
   };
 
@@ -536,12 +589,12 @@ export function NoteCard({
       {/* Select checkbox (top-left): reveal-gated at rest; once anything on the
           page is selected it stays visible on every card until selection clears. */}
       {canSelect && (
-        <Tooltip label={selected ? "Deselect note" : "Select note"} side="right">
+        <Tooltip label={selected ? t("note.deselect") : t("note.select")} side="right">
         <button
           type="button"
           role="checkbox"
           aria-checked={selected}
-          aria-label={selected ? "Deselect note" : "Select note"}
+          aria-label={selected ? t("note.deselect") : t("note.select")}
           onClick={(e) => {
             e.stopPropagation();
             selection.toggle(note.id);
@@ -569,10 +622,10 @@ export function NoteCard({
       )}
       {/* Pin toggle (top-right): always visible when pinned, reveal-gated otherwise. */}
       {canPin && (
-        <Tooltip label={pinned ? "Unpin from this page" : "Pin to this page"} side="left">
+        <Tooltip label={pinned ? t("note.unpin") : t("note.pin")} side="left">
           <button
             type="button"
-            aria-label={pinned ? "Unpin from this page" : "Pin to this page"}
+            aria-label={pinned ? t("note.unpin") : t("note.pin")}
             onClick={(e) => {
               e.stopPropagation();
               // Pin: "lift and place" — the card is picked up here and set down in the
@@ -590,8 +643,29 @@ export function NoteCard({
               const html = cardRef.current?.innerHTML ?? "";
               const heldFlightId =
                 from && !reduceMotion ? flyCard({ html, from, to: null, kind: "lift" }) : null;
+              // And the list is told to HOLD until that clone actually sets off.
+              //
+              // Order is the whole point here, and it used to be backwards. Both
+              // containers refetch when the server answers, and the grid rearranged on
+              // that render — while the card being pinned had nowhere to fly to yet,
+              // because its destination is rendered by that very refetch. So the space
+              // opened first and the card was posted into it afterwards, which is not
+              // how anything moves. Held, the grid stays exactly as it was until the
+              // card is under way, and then gets out of its way because it is coming.
+              //
+              // Set before the request, because the reflow is captured by the
+              // mutation's own cache reconcile the instant the server answers, which
+              // is before anything here runs again.
+              if (heldFlightId != null) holdReflow();
               const opts = {
-                onSuccess: () => settleInto(note.id, from, html, "lift", undefined, heldFlightId),
+                onSuccess: () => settleInto(note.id, from, "lift", heldFlightId),
+                onError: () => {
+                  // Nothing moved between containers, so nothing will reflow — hand
+                  // the hold back rather than leaving it primed for whichever
+                  // unrelated action captures next, and put the clone down.
+                  holdReflow(false);
+                  if (heldFlightId != null) landFly(heldFlightId, null);
+                },
               };
               if (pinned) pinActions.unpin.mutate({ noteId: note.id, scope: scope! }, opts);
               else pinActions.pin.mutate({ noteId: note.id, scope: scope! }, opts);
@@ -613,11 +687,11 @@ export function NoteCard({
               lockFx === "revealing" && "lock-reveal"
             )}
             style={{ ["--lock-reveal-ms" as string]: `${LOCK_REVEAL_MS}ms` }}
-            aria-label="Locked"
+            aria-label={t("note.locked")}
           />
         )}
         <h3 className="type-card-title relative truncate">
-          {note.title || "Untitled"}
+          {note.title || t("note.untitled")}
           {/* Delete's first beat: a line drawn left-to-right across the title, so the
               action is visibly acknowledged before the card physically leaves. On undo
               the same line comes back struck through and retracts the way it was drawn,
@@ -682,11 +756,11 @@ export function NoteCard({
       >
         {filter === "active" && (
           <>
-            <BarButton label="Archive" onClick={archive}>
+            <BarButton label={t("note.archive")} onClick={archive}>
               <Archive className="h-4 w-4" />
             </BarButton>
             <BarButton
-              label={note.isLocked ? "Unlock to duplicate" : "Duplicate"}
+              label={note.isLocked ? t("note.duplicate.locked") : t("note.duplicate")}
               onClick={dupe}
               disabled={note.isLocked}
             >
@@ -695,14 +769,14 @@ export function NoteCard({
             <ResponsivePopover
               open={organizeOpen}
               onOpenChange={setOrganizeOpen}
-              title="Organize"
-              triggerLabel="Change folder & tags"
+              title={t("note.organize")}
+              triggerLabel={t("note.organize.trigger")}
               align="end"
               contentClassName="w-72"
               trigger={
                 <button
                   type="button"
-                  aria-label="Change folder & tags"
+                  aria-label={t("note.organize.trigger")}
                   className="card-action-btn inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <Folder className="h-4 w-4" />
@@ -711,7 +785,7 @@ export function NoteCard({
             >
               <div className="flex flex-col gap-3 p-1 max-sm:p-4">
                 <div>
-                  <div className="mb-1.5 text-xs font-medium text-muted-foreground">Folder</div>
+                  <div className="mb-1.5 text-xs font-medium text-muted-foreground">{t("note.folder")}</div>
                   <FolderSelect
                     value={note.folder?.id ?? null}
                     onChange={(folderId) => updateNote.mutate({ id: note.id, folderId })}
@@ -719,27 +793,27 @@ export function NoteCard({
                   />
                 </div>
                 <div>
-                  <div className="mb-1.5 text-xs font-medium text-muted-foreground">Tags</div>
+                  <div className="mb-1.5 text-xs font-medium text-muted-foreground">{t("note.tags")}</div>
                   <TagMultiSelect value={note.tags.map((t) => t.id)} onChange={applyTags} />
                 </div>
               </div>
             </ResponsivePopover>
             {note.isLocked ? (
-              <BarButton label="Unlock to export" disabled>
+              <BarButton label={t("note.export.locked")} disabled>
                 <Download className="h-4 w-4" />
               </BarButton>
             ) : (
               <ResponsivePopover
                 open={exportOpen}
                 onOpenChange={setExportOpen}
-                title="Export"
-                triggerLabel="Export this note"
+                title={t("note.export")}
+                triggerLabel={t("note.export.trigger")}
                 align="end"
                 contentClassName="w-52 p-1"
                 trigger={
                   <button
                     type="button"
-                    aria-label="Export this note"
+                    aria-label={t("note.export.trigger")}
                     className="card-action-btn inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
                   >
                     <Download className="h-4 w-4" />
@@ -751,13 +825,13 @@ export function NoteCard({
                     onClick={() => { runExport(exportNoteAsMarkdown); setExportOpen(false); }}
                     className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover-scrim max-sm:py-3 max-sm:text-base"
                   >
-                    <FileText className="h-4 w-4" /> Export as Markdown
+                    <FileText className="h-4 w-4" /> {t("note.export.markdown")}
                   </button>
                   <button
                     onClick={() => { runExport(exportNoteAsPdf); setExportOpen(false); }}
                     className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover-scrim max-sm:py-3 max-sm:text-base"
                   >
-                    <Printer className="h-4 w-4" /> Export as PDF
+                    <Printer className="h-4 w-4" /> {t("note.export.pdf")}
                   </button>
                 </div>
               </ResponsivePopover>
@@ -767,27 +841,27 @@ export function NoteCard({
                 security state belongs in the note itself, where the consequences are
                 spelled out, not one hover away in a list. */}
             <BarButton
-              label={note.isLocked ? "View content" : "Lock note"}
+              label={note.isLocked ? t("note.viewContent") : t("note.lock")}
               onClick={() => openLock(note.isLocked ? "unlock" : "lock")}
             >
               {note.isLocked ? <Eye className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
             </BarButton>
-            <BarButton label="Delete" onClick={del} danger>
+            <BarButton label={t("common.delete")} onClick={del} danger>
               <Trash2 className="h-4 w-4" />
             </BarButton>
           </>
         )}
         {filter === "archive" && (
-          <BarButton label="Unarchive" onClick={() => actions.unarchive.mutate(note.id)}>
+          <BarButton label={t("note.unarchive")} onClick={() => actions.unarchive.mutate(note.id)}>
             <ArchiveRestore className="h-4 w-4" />
           </BarButton>
         )}
         {filter === "trash" && (
           <>
-            <BarButton label="Restore" onClick={() => actions.restore.mutate(note.id)}>
+            <BarButton label={t("note.restore")} onClick={() => actions.restore.mutate(note.id)}>
               <RotateCcw className="h-4 w-4" />
             </BarButton>
-            <BarButton label="Delete permanently" onClick={() => actions.permanent.mutate(note.id)} danger>
+            <BarButton label={t("note.deletePermanently")} onClick={() => actions.permanent.mutate(note.id)} danger>
               <XCircle className="h-4 w-4" />
             </BarButton>
           </>

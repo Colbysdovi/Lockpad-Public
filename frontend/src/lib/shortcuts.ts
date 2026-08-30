@@ -1,3 +1,4 @@
+import { tOutsideReact, type MessageKey } from "@/lib/i18n";
 // Lockpad's keyboard shortcuts, and how to print a key for the machine you are on.
 //
 // ── Why this file is the only place shortcuts are described ──────────────────
@@ -95,41 +96,46 @@ export function describeShortcut(keys: ShortcutKey[]): string {
     Enter: "Enter",
     Tab: "Tab",
     Escape: "Escape",
-    "↑": "Up arrow",
-    "↓": "Down arrow",
+    "↑": tOutsideReact("shortcut.key.up"),
+    "↓": tOutsideReact("shortcut.key.down"),
   };
   return keys.map((k) => spoken[k] ?? k).join(" plus ");
 }
 
 export interface Shortcut {
   keys: ShortcutKey[];
-  action: string;
+  /** A CATALOGUE KEY, not the words. This table is module-level constant data, so
+   *  English stored here would be frozen at import time and the whole reference
+   *  would stay in whatever language was active when the module first loaded. The
+   *  dialog translates it at render instead. */
+  action: MessageKey;
   /** Where this binding is actually defined — see the note at the top of the file. */
   source: string;
   /** Set when the binding only applies in a narrower situation than its group
    *  implies. Printed alongside the action so the list never over-promises. */
-  when?: string;
+  when?: MessageKey;
 }
 
 export interface ShortcutGroup {
-  title: string;
-  description: string;
+  /** Catalogue keys, for the same reason as Shortcut.action above. */
+  title: MessageKey;
+  description: MessageKey;
   shortcuts: Shortcut[];
 }
 
 /** Works anywhere in the app — read straight off the window keydown handler in
  *  Layout.tsx, which is the single place global bindings live. */
 const GLOBAL: Shortcut[] = [
-  { keys: ["Mod", "K"], action: "Open search", source: "Layout.tsx" },
-  { keys: ["Mod", "N"], action: "New note", source: "Layout.tsx" },
-  { keys: ["Mod", "\\"], action: "Show or hide the sidebar", source: "Layout.tsx" },
+  { keys: ["Mod", "K"], action: "shortcut.openSearch", source: "Layout.tsx" },
+  { keys: ["Mod", "N"], action: "shortcut.newNote", source: "Layout.tsx" },
+  { keys: ["Mod", "\\"], action: "shortcut.toggleSidebar", source: "Layout.tsx" },
   {
     keys: ["Escape"],
-    action: "Close the note",
+    action: "shortcut.closeNote",
     source: "Layout.tsx",
     // The handler guards on `noteId`, so this does nothing with no note open.
     // Saying so is the difference between a reference and a wish.
-    when: "while a note is open",
+    when: "shortcut.when.note",
   },
 ];
 
@@ -140,11 +146,11 @@ const GLOBAL: Shortcut[] = [
  *  reference earns its keep by listing the binding a reader should learn, not
  *  every alias that happens to resolve. */
 const EDITOR_FORMATTING: Shortcut[] = [
-  { keys: ["Mod", "B"], action: "Bold", source: "@tiptap/extension-bold" },
-  { keys: ["Mod", "I"], action: "Italic", source: "@tiptap/extension-italic" },
-  { keys: ["Mod", "Shift", "S"], action: "Strikethrough", source: "@tiptap/extension-strike" },
-  { keys: ["Mod", "E"], action: "Inline code", source: "@tiptap/extension-code" },
-  { keys: ["Mod", "Shift", "H"], action: "Highlight", source: "components/highlight.ts" },
+  { keys: ["Mod", "B"], action: "shortcut.bold", source: "@tiptap/extension-bold" },
+  { keys: ["Mod", "I"], action: "shortcut.italic", source: "@tiptap/extension-italic" },
+  { keys: ["Mod", "Shift", "S"], action: "shortcut.strikethrough", source: "@tiptap/extension-strike" },
+  { keys: ["Mod", "E"], action: "shortcut.inlineCode", source: "@tiptap/extension-code" },
+  { keys: ["Mod", "Shift", "H"], action: "shortcut.highlight", source: "components/highlight.ts" },
 ];
 
 /** Block-level structure. */
@@ -152,38 +158,77 @@ const EDITOR_STRUCTURE: Shortcut[] = [
   // StarterKit is configured with levels [1, 2, 3], so only those three exist —
   // extension-heading binds Mod-Alt-<level> for each CONFIGURED level, which is
   // why there is no Mod+Alt+4 here even though the extension can produce one.
-  { keys: ["Mod", "Alt", "1"], action: "Heading 1", source: "@tiptap/extension-heading" },
-  { keys: ["Mod", "Alt", "2"], action: "Heading 2", source: "@tiptap/extension-heading" },
-  { keys: ["Mod", "Alt", "3"], action: "Heading 3", source: "@tiptap/extension-heading" },
-  { keys: ["Mod", "Alt", "0"], action: "Plain paragraph", source: "@tiptap/extension-paragraph" },
-  { keys: ["Mod", "Shift", "8"], action: "Bulleted list", source: "@tiptap/extension-bullet-list" },
-  { keys: ["Mod", "Shift", "7"], action: "Numbered list", source: "@tiptap/extension-ordered-list" },
-  { keys: ["Mod", "Shift", "9"], action: "Checklist", source: "@tiptap/extension-task-list" },
-  { keys: ["Mod", "Shift", "B"], action: "Quote", source: "@tiptap/extension-blockquote" },
+  { keys: ["Mod", "Alt", "1"], action: "shortcut.heading1", source: "@tiptap/extension-heading" },
+  { keys: ["Mod", "Alt", "2"], action: "shortcut.heading2", source: "@tiptap/extension-heading" },
+  { keys: ["Mod", "Alt", "3"], action: "shortcut.heading3", source: "@tiptap/extension-heading" },
+  { keys: ["Mod", "Alt", "0"], action: "shortcut.paragraph", source: "@tiptap/extension-paragraph" },
+  { keys: ["Mod", "Shift", "8"], action: "shortcut.bulletedList", source: "@tiptap/extension-bullet-list" },
+  { keys: ["Mod", "Shift", "7"], action: "shortcut.numberedList", source: "@tiptap/extension-ordered-list" },
+  { keys: ["Mod", "Shift", "9"], action: "shortcut.checklist", source: "@tiptap/extension-task-list" },
+  { keys: ["Mod", "Shift", "B"], action: "shortcut.quote", source: "@tiptap/extension-blockquote" },
   // Kept deliberately. StarterKit's own codeBlock is switched off in Editor.tsx in
   // favour of the syntax-highlighted one, and the obvious conclusion is that its
   // shortcut died with it — but CodeBlockLowlight is `CodeBlock.extend(...)` and
   // does not override addKeyboardShortcuts, so it INHERITS this binding and the
   // key still works. Verified in the installed source, not assumed either way.
-  { keys: ["Mod", "Alt", "C"], action: "Code block", source: "@tiptap/extension-code-block-lowlight" },
-  { keys: ["Tab"], action: "Indent the list item", source: "@tiptap/extension-list-item", when: "inside a list" },
-  { keys: ["Shift", "Tab"], action: "Outdent the list item", source: "@tiptap/extension-list-item", when: "inside a list" },
-  { keys: ["Alt", "↑"], action: "Move this block up", source: "components/blockDragHandle.ts" },
-  { keys: ["Alt", "↓"], action: "Move this block down", source: "components/blockDragHandle.ts" },
-  { keys: ["Shift", "Enter"], action: "Line break without a new paragraph", source: "@tiptap/extension-hard-break" },
-  { keys: ["Mod", "Z"], action: "Undo", source: "@tiptap/extension-history" },
-  { keys: ["Mod", "Shift", "Z"], action: "Redo", source: "@tiptap/extension-history" },
+  { keys: ["Mod", "Alt", "C"], action: "shortcut.codeBlock", source: "@tiptap/extension-code-block-lowlight" },
+  { keys: ["Tab"], action: "shortcut.indent", source: "@tiptap/extension-list-item", when: "shortcut.when.list" },
+  { keys: ["Shift", "Tab"], action: "shortcut.outdent", source: "@tiptap/extension-list-item", when: "shortcut.when.list" },
+  { keys: ["Alt", "↑"], action: "shortcut.moveBlockUp", source: "components/blockDragHandle.ts" },
+  { keys: ["Alt", "↓"], action: "shortcut.moveBlockDown", source: "components/blockDragHandle.ts" },
+  { keys: ["Shift", "Enter"], action: "shortcut.lineBreak", source: "@tiptap/extension-hard-break" },
+  { keys: ["Mod", "Z"], action: "shortcut.undo", source: "@tiptap/extension-history" },
+  { keys: ["Mod", "Shift", "Z"], action: "shortcut.redo", source: "@tiptap/extension-history" },
+];
+
+/** The quick-note bar at the bottom of every list page.
+ *
+ *  All three are listed, and listing all three is the point. Enter used to create a
+ *  note AND open it; it now creates without opening, and Mod+Enter is what opens.
+ *  Documenting only the new binding would leave a reader who already knows this app
+ *  assuming Enter still does what it used to — the one misreading this reference
+ *  exists to prevent.
+ *
+ *  Shift+Enter is here for the same reason, even though it is the one thing that did
+ *  NOT change: it is what makes a multi-line quick note possible, it is the reason
+ *  "create and open" is bound to Mod rather than Shift, and a reference that lists
+ *  two of a field's three Enter behaviours is a reference that reads as complete
+ *  while being wrong. */
+const COMPOSER: Shortcut[] = [
+  {
+    keys: ["Enter"],
+    action: "shortcut.createStay",
+    source: "components/NoteBar.tsx",
+    when: "shortcut.when.composer",
+  },
+  {
+    keys: ["Mod", "Enter"],
+    action: "shortcut.createOpen",
+    source: "components/NoteBar.tsx",
+    when: "shortcut.when.composer",
+  },
+  {
+    keys: ["Shift", "Enter"],
+    action: "shortcut.newLine",
+    source: "components/NoteBar.tsx",
+    when: "shortcut.when.composer",
+  },
 ];
 
 export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
-    title: "Anywhere",
-    description: "These work from any screen in Lockpad.",
+    title: "shortcut.group.anywhere",
+    description: "shortcut.group.anywhere.blurb",
     shortcuts: GLOBAL,
   },
   {
-    title: "Writing a note",
-    description: "These work while the cursor is in a note.",
+    title: "shortcut.group.composer",
+    description: "shortcut.group.composer.blurb",
+    shortcuts: COMPOSER,
+  },
+  {
+    title: "shortcut.group.note",
+    description: "shortcut.group.note.blurb",
     shortcuts: [...EDITOR_FORMATTING, ...EDITOR_STRUCTURE],
   },
 ];

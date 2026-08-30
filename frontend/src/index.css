@@ -80,6 +80,14 @@
        .raised-top as a 1px inset highlight just below the top border. */
     --surface-highlight: color-mix(in srgb, #ffffff 70%, transparent);
     --surface-blur: 18px;
+    /* The grouping well behind each Settings section (see SettingsPrimitives). It
+       sits one step between the canvas and the cards inside it, and it is a token
+       rather than a class because the two themes want DIFFERENT amounts of it: on
+       the warm cream canvas the cards are only a few points off the page, so a
+       lighter touch is enough and more reads as a slab; on the dark canvas the same
+       fraction disappears. Alpha rather than a solid mix so it is genuinely a wash
+       over whatever it is laid on. */
+    --settings-well: color-mix(in srgb, var(--card) 40%, transparent);
     /* Warm espresso shadow tint (#3B2F27) as an "R G B" triplet, shared by the
        Tailwind shadow-* scale (tailwind.config.js) and the custom shadows below,
        so nothing casts an impersonal cold/black shadow. */
@@ -235,6 +243,10 @@
     --surface-border: color-mix(in srgb, #ffffff 9%, transparent);
     /* Subtler on dark: a faint white top edge (macOS dark windows barely highlight). */
     --surface-highlight: color-mix(in srgb, #ffffff 12%, transparent);
+    /* Settings well, dark: held at the full half-step. The gap between the dark
+       canvas and the dark card is wider than its light counterpart, so the light
+       theme's lighter touch would leave the section invisible here. */
+    --settings-well: color-mix(in srgb, var(--card) 50%, transparent);
     /* Deep warm near-black (#0F0A07) so shadows still read on the dark canvas
        while keeping the brown cast rather than a neutral black. */
     --shadow-color: 15 10 7;
@@ -383,6 +395,58 @@
   height: 100dvh;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Changing the interface language
+
+   The app blurs behind a veil while the language changes, so the switch reads as
+   the app having done something rather than as a flicker. The blur lives here, on
+   a class toggled on <html>, and NOT on a wrapper element around the app: `filter`
+   creates a containing block, so wrapping the app in a filtered div would make
+   every `position: fixed` element in it — the header, the composer, the note sheet
+   — position against that div instead of the viewport. A class changes nothing
+   structural.
+
+   The transitions are asymmetric on purpose. Going in is a response to a click and
+   should feel prompt; coming out is the reveal, and wants to be watched. The
+   numbers match LANGUAGE_VEIL_IN_MS / LANGUAGE_VEIL_OUT_MS in lib/motion.ts, which
+   is where the veil's own fade is set — if you change one, change the other, or
+   the blur and the veil stop lifting together.
+
+   `will-change` is deliberately absent. It would promote the entire app shell to
+   its own layer for the whole session to serve a transition that runs for a second
+   at a time, which is the trade in the wrong direction. */
+.app-shell {
+  transition: filter 420ms var(--ease-follow);
+}
+
+html.lang-switching .app-shell {
+  filter: blur(7px);
+  transition: filter 220ms var(--ease-follow);
+}
+
+/* Radix renders popovers and dialogs into a portal on <body>, outside .app-shell,
+   so they need the blur applied separately or a menu left open during the switch
+   would sit perfectly sharp on top of a blurred app. */
+html.lang-switching [data-radix-popper-content-wrapper],
+html.lang-switching [role="dialog"] {
+  filter: blur(7px);
+  transition: filter 220ms var(--ease-follow);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Someone who asked their machine for less movement is not asking for a
+     theatrical pause. The veil never mounts (see LanguageSwitchVeil), and the blur
+     is neutralised here so the switch is simply instant — which is the honest
+     behaviour underneath all of this anyway. */
+  .app-shell,
+  html.lang-switching .app-shell,
+  html.lang-switching [data-radix-popper-content-wrapper],
+  html.lang-switching [role="dialog"] {
+    filter: none;
+    transition: none;
+  }
+}
+
 /* iOS zooms the whole page when a focused input's font is under 16px. Keep form
    controls at 16px on phones so focusing the note bar / search never zooms.
    `!important` is needed to beat Tailwind's `.text-sm`/`.text-xs` utilities,
@@ -417,6 +481,12 @@
   min-height: 60vh;
   font-size: var(--type-body-size);
   line-height: var(--type-body-leading);
+  /* How much vertical padding each block carries. Zero here; the note editor raises
+     it (see below). It is a variable rather than a number written twice because the
+     checklist has to know it — a checkbox is centred on the first LINE of its item,
+     and that line's position depends on this padding. When the two disagreed, the
+     checkboxes floated exactly this far above their labels. */
+  --prose-block-pad: 0rem;
 }
 .ProseMirror p {
   margin: 0.35em 0;
@@ -424,9 +494,12 @@
 /* Roomier paragraph blocks in the note EDITOR (not card previews): extra vertical
    padding gives each block a taller box, so the drag handle + "+" read as centred on
    the block's height rather than pinned to the first character. */
+.note-view .ProseMirror {
+  --prose-block-pad: 0.4rem;
+}
 .note-view .ProseMirror p {
   margin: 0.1em 0;
-  padding: 0.4rem 0;
+  padding: var(--prose-block-pad) 0;
 }
 .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
@@ -915,16 +988,68 @@
   align-items: flex-start;
   gap: 0.5rem;
 }
+/* The checkbox is centred on the item's FIRST LINE, and the box it centres in is
+   derived rather than guessed.
+ *
+ * It used to be `margin-top: 0.15rem` — one hand-picked nudge, and the reason the
+ * boxes floated above their labels. A fixed nudge can only be right for one set of
+ * type metrics, and there are two here: a card preview, where a paragraph has no
+ * padding, and the note editor, where `--prose-block-pad` pushes every block down to
+ * give the drag handle a taller box to centre on. The nudge was tuned against the
+ * preview (correct there to within a fifth of a pixel) and was therefore wrong in the
+ * editor by exactly the padding it did not know about — measured at 6.6px, which is a
+ * third of a line.
+ *
+ * So the label is given the same box the paragraph beside it has: the same padding,
+ * and a content area exactly one line tall. Centring inside that lands on the middle
+ * of the first line by construction, in both places, at any font size, and it cannot
+ * drift again because both sides now read the same two tokens.
+ *
+ * Worth knowing if this ever looks subtly high: centring on the line box is not
+ * automatically the same as centring on the text, because a 1.7 leading leaves far
+ * more room than the glyphs occupy. For the system font at this leading the two agree
+ * to 0.02em (a third of a pixel at 16px), measured from the font's own metrics, so no
+ * optical correction is warranted. A much tighter or looser leading could change that. */
 .ProseMirror ul[data-type="taskList"] li > label {
   flex: 0 0 auto;
-  margin-top: 0.15rem;
+  display: flex;
+  align-items: center;
+  /* Explicit rather than inherited from the reset, because the height below is a
+     border-box calculation and silently becomes wrong under content-box. */
+  box-sizing: border-box;
+  padding-block: var(--prose-block-pad);
+  height: calc(var(--prose-block-pad) * 2 + var(--type-body-leading) * 1em);
   user-select: none;
 }
 .ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
-  width: 1rem;
-  height: 1rem;
+  width: 1.125rem;
+  height: 1.125rem;
   cursor: pointer;
   accent-color: var(--primary);
+}
+
+/* Touch: a 16px checkbox is a fingernail target. On a coarse pointer the box grows to
+   24px and the label around it becomes the tap target, widened by its own padding.
+ *
+ * The target's HEIGHT needs no help: the label already spans the full line pitch
+ * (padding + one line + padding), which in the editor is 40px. That is also why the
+ * target is grown with padding and a matching negative margin instead of an inset
+ * overlay — an overlay sized generously enough to feel right overlapped the row above
+ * and below, so the wrong item toggled near the edges. Padding grows the target
+ * exactly as far as it can go without reaching into a neighbour.
+ *
+ * Card previews are excluded. They are inert, aria-hidden miniatures of a note
+ * (`pointer-events: none`), so there is nothing to tap and a 24px box would just be a
+ * large decoration crowding a small card. */
+@media (pointer: coarse) {
+  .ProseMirror:not(.note-preview) ul[data-type="taskList"] li > label {
+    padding-inline: 0.375rem;
+    margin-inline: -0.375rem;
+  }
+  .ProseMirror:not(.note-preview) ul[data-type="taskList"] li > label input[type="checkbox"] {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
 }
 .ProseMirror ul[data-type="taskList"] li > div {
   flex: 1 1 auto;
@@ -936,11 +1061,19 @@
   text-decoration: line-through;
   color: var(--muted-foreground);
 }
-/* Keep-style collapse: when enabled, checked items are lifted out of the main
-   list and surfaced in the footer accordion instead (see CheckedItemsFooter).
-   The node is only hidden, never moved, so unchecking restores its exact spot. */
+/* Keep-style collapse: when enabled, checked items are hidden from the list and
+   offered back by the fold directly underneath it (see taskListView.tsx). The node
+   is only hidden, never moved, so unchecking restores its exact spot. */
 .collapse-checked .ProseMirror ul[data-type="taskList"] li[data-checked="true"] {
   display: none;
+}
+
+/* The fold of completed items, sitting under its own list rather than at the foot of
+   the note. Indented to the checkboxes' own left edge so it reads as belonging to the
+   list above it, and given a little air so it does not crowd the last open item. */
+.ProseMirror .lp-task-checked {
+  margin-top: 0.25rem;
+  padding-left: 0.25rem;
 }
 
 /* Shared material for every floating/overlay surface (PRD: Surfaces, Depth &
@@ -1091,6 +1224,51 @@
 }
 @media (min-width: 640px) {
   .note-view { --note-inset-l: 4rem; --note-inset-r: 2rem; }
+}
+
+/* ── The bottom slot, and how far the list must stay clear of it ───────────────
+   Two things float over the bottom of every list screen: the composer (or the
+   bulk-action bar, which shares its slot) and, above that, the round "Back to
+   top" button. Neither is in the scroll flow, so the list cannot see them — the
+   only thing keeping the last row readable is padding on the scroller, and that
+   padding has to be told how tall the furniture is.
+
+   It was told once, and then it went stale. The padding cleared the composer
+   (7rem) but was written before the Back to top button existed, so the button —
+   pinned 9rem up and 2.5rem tall, needing 11.5rem — floated straight over "End
+   of list". Both are horizontally centred, so the 40px button covered the 16px
+   label completely rather than merely crowding it.
+
+   Hence one source of truth. --bottom-slot-clearance is where the button sits;
+   --back-to-top-size is how big it is; the inset below is derived from both, so
+   the scroller's padding cannot disagree with the furniture it is clearing. A
+   number changed here moves the button and the padding together, which is the
+   whole point: the bug was drift between two numbers nothing connected, not a
+   number that was wrong when it was written.
+
+   The safe-area inset is included because the button already accounts for it,
+   and padding that ignored it would come up short by exactly a home indicator on
+   the phones that have one. */
+:root {
+  /* Mobile: the composer rests collapsed, so the button tucks in closer. */
+  --bottom-slot-clearance: 6rem;
+  --back-to-top-size: 2.75rem;   /* h-11 */
+  /* Breathing room between the last thing in the list and the button's top edge.
+     Without it the label clears the button by a hair, which reads as a mistake
+     rather than as spacing. */
+  --list-bottom-gap: 1.25rem;
+  --list-bottom-inset: calc(
+    env(safe-area-inset-bottom) + var(--bottom-slot-clearance) +
+    var(--back-to-top-size) + var(--list-bottom-gap)
+  );
+}
+@media (min-width: 640px) {
+  :root {
+    /* Desktop: the composer is always expanded, so it is taller and the button
+       has to clear more of it. */
+    --bottom-slot-clearance: 9rem;
+    --back-to-top-size: 2.5rem;  /* h-10 */
+  }
 }
 @media (max-width: 639px) {
   /* Tighter frost taper on phones so the toolbar sits closer to the header — less of

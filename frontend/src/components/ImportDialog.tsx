@@ -5,6 +5,7 @@ import { Upload } from "@/components/icons";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { useT, useFormat } from "@/lib/i18n";
 
 /** What the server says it FOUND in the uploaded files, before anything is written.
  *  `folderPath` is a slash-separated path the server will create if it doesn't
@@ -30,6 +31,8 @@ interface PreviewNote { title: string; preview: string; tags: string[]; folderPa
 // Like a new note, an import inherits its context: run from a folder page and the
 // notes land in that folder; from a tag page and they arrive tagged.
 export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const t = useT();
+  const format = useFormat();
   const qc = useQueryClient();
   const [files, setFiles] = useState<File[]>([]);
   const [preview, setPreview] = useState<PreviewNote[] | null>(null);
@@ -55,7 +58,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       const res = await api.postForm<{ count: number; notes: PreviewNote[] }>("/import/preview", buildForm(fs));
       setPreview(res.notes);
     } catch {
-      setError("Could not parse the selected files.");
+      setError(t("import.parseFailed"));
     } finally { setBusy(false); }
   };
 
@@ -82,7 +85,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       reset();
       onOpenChange(false);
     } catch {
-      setError("Import failed.");
+      setError(t("import.failed"));
     } finally { setBusy(false); }
   };
 
@@ -93,11 +96,9 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
       <DialogContent mobileSheet className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Import notes</DialogTitle>
+          <DialogTitle>{t("import.title")}</DialogTitle>
           <DialogDescription>
-            Import a CSV (columns: title, content, tags, folder), a JSON export, an HTML
-            page, or one or more Markdown/text files. Everything is parsed locally — no
-            data leaves your server.
+            {t("import.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -107,7 +108,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
           className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground hover-scrim"
         >
           <Upload className="h-6 w-6" />
-          Drop files here or click to choose (.csv, .json, .html, .md, .txt)
+          {t("import.drop")}
           <input
             type="file"
             multiple
@@ -133,7 +134,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                   {n.tags.map((t) => <span key={t} className="rounded bg-accent px-1">#{t}</span>)}
                   {n.createdAt && (
                     <span className="ml-auto whitespace-nowrap">
-                      {new Date(n.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
+                      {format.longDate(n.createdAt)}
                     </span>
                   )}
                 </div>
@@ -143,9 +144,9 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         )}
 
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>{t("common.cancel")}</Button>
           <Button onClick={commit} disabled={busy || !preview || preview.length === 0}>
-            {busy ? "Importing…" : `Import ${preview?.length ?? 0} note${preview?.length === 1 ? "" : "s"}`}
+            {busy ? t("import.importing") : t("import.confirm", { count: preview?.length ?? 0 })}
           </Button>
         </div>
       </DialogContent>

@@ -181,11 +181,32 @@ the disk that dies with it is not a backup.
 **Export your notes first** (Settings → Data). Every time. It takes ten seconds and it is
 the difference between a bad update being an annoyance and being a loss.
 
-In the directory Lockpad was installed into:
+Your install is pinned to a specific release, so updating is two steps: say which
+version you want, then pull it. In the directory Lockpad was installed into, open `.env`
+and change the `TAG` line to the release you are moving to:
+
+```bash
+TAG=v1.1.0
+```
+
+Then apply it:
 
 ```bash
 docker compose pull && docker compose up -d
 ```
+
+The pin is deliberate. Without it, Lockpad would follow whatever was published most
+recently, and the app would change on days you did not choose — including in the middle of
+a week when you were relying on it. Pinned, nothing moves until you move it. The trade is
+that `pull` on its own will report everything up to date, which is the pin working rather
+than the update being broken.
+
+[CHANGELOG.md](CHANGELOG.md) lists what each release changed, so you can see what you are
+moving to before you move.
+
+**Only ever move forward.** Database migrations run in one direction, so once a newer
+release has upgraded your database, an older one cannot be pointed back at it. If you need
+to undo an update, restore the export you took first.
 
 Database migrations run themselves when the app starts. There is no separate migration
 command to remember, and if you find an instruction telling you to run one, it is out of

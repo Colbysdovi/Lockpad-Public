@@ -1,8 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../prisma.js";
 import { badRequest, conflict, notFound } from "../errors.js";
-import { createTagSchema, applyTagSchema } from "../schemas.js";
+import { createTagSchema, updateTagSchema, applyTagSchema } from "../schemas.js";
 import { noteInclude, serializeNote } from "../lib/serialize.js";
+import { collidesWith } from "../lib/names.js";
 
 // Get-or-create a tag by name. Idempotent so the create-on-the-fly tag input
 // (§3.5) never produces duplicates and races resolve to the existing row.
@@ -32,6 +33,42 @@ export async function tagsRoutes(app: FastifyInstance) {
     const body = createTagSchema.parse(request.body);
     const tag = await getOrCreateTag(body.name);
     return reply.status(201).send(tag);
+  });
+
+  // Rename a tag. The FIRST way to modify an existing tag's own record — until now a
+  // tag could only be created, applied, and deleted once unused, which made a typo
+  // permanent in practice: correcting it meant untagging every note, deleting the
+  // tag, creating a new one and reapplying it everywhere.
+  //
+  // A rename touches the tag row and nothing else. Every NoteTag link is keyed on the
+  // tag's id, so the associations are untouched by construction — there is no
+  // re-tagging step to get wrong, and the notes simply start showing the new name.
+  app.patch("/tags/:id", async (request) => {
+    const { id } = request.params as { id: string };
+    const body = updateTagSchema.parse(request.body);
+    const name = body.name.trim();
+    if (!name) throw badRequest("Tag name cannot be empty");
+
+    const tag = await prisma.tag.findUnique({ where: { id } });
+    if (!tag) throw notFound("Tag not found");
+
+    // Checked here as well as in the form, and the duplication is the point. The
+    // client's check is a courtesy that makes the collision visible while typing; it
+    // cannot be a guarantee, because it reads a snapshot that can be stale by the
+    // time the request lands (a second tab, a rename racing a create). This is the
+    // one that actually holds the rule.
+    //
+    // Compared in JS rather than by a query predicate: the rule folds whitespace as
+    // well as case, and no Postgres collation does both. See lib/names.ts.
+    const others = await prisma.tag.findMany({
+      where: { id: { not: id } },
+      select: { name: true },
+    });
+    if (collidesWith(name, others.map((t) => t.name))) {
+      throw conflict(`Another tag is already called “${name}”.`);
+    }
+
+    return prisma.tag.update({ where: { id }, data: { name } });
   });
 
   // Apply a tag to a note (by id or by name → get-or-create).

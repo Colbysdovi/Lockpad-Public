@@ -5,6 +5,7 @@ import { SettingsSection } from "@/components/SettingsPrimitives";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/lib/useToast";
+import { useT } from "@/lib/i18n";
 
 // Settings → Security.
 //
@@ -25,11 +26,13 @@ interface SessionInfo {
 }
 
 function formatDate(iso?: string | null): string {
-  if (!iso) return "—";
+  const t = useT();
+  if (!iso) return t("common.noValue");
   return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
 export function SecuritySettings() {
+  const t = useT();
   const { warning } = useAuth();
   const toast = useToast();
   const [session, setSession] = useState<SessionInfo | null>(null);
@@ -47,9 +50,9 @@ export function SecuritySettings() {
     setWorking(true);
     try {
       await api.post("/auth/session/revoke", {});
-      toast("Signed out on every other device.", { kind: "success" });
+      toast(t("settings.security.signedOut"), { kind: "success" });
     } catch {
-      toast("Could not sign out the other devices.", { kind: "error" });
+      toast(t("settings.security.signOutFailed"), { kind: "error" });
     } finally {
       setWorking(false);
     }
@@ -60,9 +63,8 @@ export function SecuritySettings() {
   return (
     <SettingsSection
       id="security-heading"
-      title="Security"
-      description="Who can reach this server, and how to cut off a device you no longer have."
-      className="mt-10"
+      title={t("settings.security.title")}
+      description={t("settings.security.description")}
     >
       {/* The exposure warning. Shown here rather than only in the server log,
           because a log file on a headless machine is a place warnings go to be
@@ -90,7 +92,7 @@ export function SecuritySettings() {
         >
           <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
           <div className="min-w-0 text-sm">
-            <div className="font-medium text-destructive">This server is open to your network</div>
+            <div className="font-medium text-destructive">{t("settings.security.exposed")}</div>
             <p className="mt-1 text-muted-foreground">{warning}</p>
           </div>
         </div>
@@ -104,20 +106,18 @@ export function SecuritySettings() {
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 font-medium">
             <LogOut className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            Signed-in devices
+            {t("settings.security.devices")}
           </div>
           {authOff ? (
             <p className="mt-0.5 text-sm text-muted-foreground">
-              No password is set, so there are no sessions to manage. Set APP_PASSWORD in your .env to
-              turn the login on.
+              {t("settings.security.noPassword")}
             </p>
           ) : (
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Sign out everywhere except here — for a phone you no longer have, or a browser you would
-              rather not stay logged in. This device stays signed in.
+              {t("settings.security.signOutOthers")}
               {session?.expiresAt && (
                 <>
-                  {" "}This session lasts until {formatDate(session.expiresAt)}.
+                  {" "}{t("settings.security.sessionUntil", { when: formatDate(session.expiresAt) })}
                 </>
               )}
             </p>
@@ -125,7 +125,7 @@ export function SecuritySettings() {
         </div>
         <div className="shrink-0">
           <Button variant="outline" onClick={signOutOthers} disabled={working || authOff} className="gap-1.5">
-            <LogOut className="h-4 w-4" /> Sign out other devices
+            <LogOut className="h-4 w-4" /> {t("settings.security.signOutButton")}
           </Button>
         </div>
       </div>

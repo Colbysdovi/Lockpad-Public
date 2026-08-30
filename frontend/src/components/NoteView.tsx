@@ -36,33 +36,41 @@ function collectNoteLinkIds(doc: unknown): Set<string> {
   return out;
 }
 import { cn } from "@/lib/utils";
+import { useT, useLocale, withSlots, SLOT } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
-const SAVE_LABEL: Record<SaveState, string> = {
+/** The bound translator, for the few helpers here that take it as an argument. */
+type TranslateFn = (key: MessageKey) => string;
+
+const saveLabels = (t: TranslateFn): Record<SaveState, string> => ({
   idle: "",
-  unsaved: "Unsaved changes",
-  saving: "Saving…",
-  saved: "Saved",
-  error: "Error saving",
-};
+  unsaved: t("editor.status.unsaved"),
+  saving: t("editor.status.saving"),
+  saved: t("common.saved"),
+  error: t("editor.status.error"),
+});
 
 // A locked note cannot be written to, so its save state is not a state at all —
 // nothing is ever attempted. It used to surface as "Error saving", which reads as a
 // fault when in fact everything is behaving correctly: the note is being viewed, not
 // edited. Read-only gets its own indicator that says exactly that.
-const READ_ONLY_LABEL = "Read-only — remove the lock to edit";
+
 
 // Compact save-status affordance (PRD 3 / PRD 7): a small icon/dot instead of a
 // persistent text label, so it doesn't compete with the note title. The label
 // text still lives in an sr-only aria-live region for screen readers, and as the
 // hover title. (Single implementation shared by both PRDs.)
 function SaveIndicator({ state, compact, readOnly }: { state: SaveState; compact?: boolean; readOnly?: boolean }) {
-  // Read-only OVERRIDES the save state rather than sitting alongside it: while a note
-  // is being viewed under its lock the autosave's own status is meaningless (and,
-  // because the server refuses the write, actively misleading).
-  //
   // `readOnly` means SESSION-UNLOCKED specifically, not merely locked — see the
-  // `showStatus` note at the call site.
-  const label = readOnly ? READ_ONLY_LABEL : SAVE_LABEL[state];
+  // `showStatus` note at the call site. While a note is viewed under its lock the
+  // autosave's status is meaningless, and — because the server refuses the write —
+  // actively misleading.
+  const t = useT();
+  // A locked note cannot be written to, so its save state is not a state at all —
+  // nothing is ever attempted. It used to surface as "Error saving", which reads as a
+  // fault when everything is behaving correctly: the note is being viewed, not
+  // edited. Read-only OVERRIDES the save state rather than sitting alongside it.
+  const label = readOnly ? t("editor.readOnly") : saveLabels(t)[state];
   return (
     // The full status ("Saving…", "Saved", …) shows on hover via the stylized
     // tooltip; it stays silent while idle (empty label → Tooltip renders nothing).
@@ -94,8 +102,8 @@ function SaveIndicator({ state, compact, readOnly }: { state: SaveState; compact
   );
 }
 
-function formatStamp(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
+function formatStamp(iso: string, locale: string) {
+  return new Date(iso).toLocaleString(locale, {
     dateStyle: "medium",
     timeStyle: "short",
   });
@@ -104,8 +112,8 @@ function formatStamp(iso: string) {
 // Compact stamp for the phone header so "Created … · Edited …" (plus the inline save
 // check) is GUARANTEED to hold on a single line on any phone: a fixed-width numeric
 // date, no time. The full desktop stamp keeps the date + time.
-function formatStampMobile(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {
+function formatStampMobile(iso: string, locale: string) {
+  return new Date(iso).toLocaleDateString(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -119,6 +127,7 @@ function formatStampMobile(iso: string) {
 // belong here. Destructive/bucket-changing actions close the sheet and surface an
 // Undo toast — same wiring (hooks + toasts) the card uses, so behaviour matches.
 function HeaderActions({ note, onBack, lockTrigger }: { note: Note; onBack: () => void; lockTrigger?: React.ReactNode }) {
+  const t = useT();
   const actions = useNoteAction();
   const duplicate = useDuplicateNote();
   const toast = useToast();
@@ -132,7 +141,7 @@ function HeaderActions({ note, onBack, lockTrigger }: { note: Note; onBack: () =
         // `reverse` makes Undo rewind the card's archive animation once the note is
         // back in the list — the sheet is closed by then, so the card is the only
         // surface that can show the action being taken back.
-        toast("Note archived", {
+        toast(t("note.archived"), {
           icon: <Archive className="h-4 w-4" />,
           action: { label: "Undo", onClick: () => actions.unarchive.mutate(note.id) },
           reverse: { ids: [note.id], kind: "archive" },
@@ -143,7 +152,7 @@ function HeaderActions({ note, onBack, lockTrigger }: { note: Note; onBack: () =
   const del = () =>
     actions.del.mutate(note.id, {
       onSuccess: () => {
-        toast("Note moved to Trash", {
+        toast(t("note.movedToTrash"), {
           icon: <Trash2 className="h-4 w-4" />,
           action: { label: "Undo", onClick: () => actions.restore.mutate(note.id) },
           reverse: { ids: [note.id], kind: "delete" },
@@ -156,15 +165,15 @@ function HeaderActions({ note, onBack, lockTrigger }: { note: Note; onBack: () =
   const dupe = () => duplicate.mutate(note.id, { onSuccess: (copy) => openNote(copy.id) });
   const unarchive = () =>
     actions.unarchive.mutate(note.id, {
-      onSuccess: () => { toast("Note unarchived"); onBack(); },
+      onSuccess: () => { toast(t("noteView.unarchived")); onBack(); },
     });
   const restore = () =>
     actions.restore.mutate(note.id, {
-      onSuccess: () => { toast("Note restored"); onBack(); },
+      onSuccess: () => { toast(t("noteView.restored")); onBack(); },
     });
   const permanent = () =>
     actions.permanent.mutate(note.id, {
-      onSuccess: () => { toast("Note permanently deleted"); onBack(); },
+      onSuccess: () => { toast(t("noteView.deleted")); onBack(); },
     });
 
   return (
@@ -177,12 +186,12 @@ function HeaderActions({ note, onBack, lockTrigger }: { note: Note; onBack: () =
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
             <FileText className="h-[18px] w-[18px]" />
           </span>
-          <span className="min-w-0 flex-1 truncate text-base font-semibold">{note.title || "Untitled"}</span>
+          <span className="min-w-0 flex-1 truncate text-base font-semibold">{note.title || t("note.untitled")}</span>
         </span>
       }
-      triggerLabel="More note actions"
+      triggerLabel={t("editor.moreActions")}
       trigger={
-        <Button variant="ghost" size="icon" aria-label="More note actions" className="h-11 w-11 shrink-0 sm:h-9 sm:w-9">
+        <Button variant="ghost" size="icon" aria-label={t("editor.moreActions")} className="h-11 w-11 shrink-0 sm:h-9 sm:w-9">
           <MoreVertical className="h-5 w-5 sm:h-4 sm:w-4" />
         </Button>
       }
@@ -196,21 +205,21 @@ function HeaderActions({ note, onBack, lockTrigger }: { note: Note; onBack: () =
       )}
       {status === "active" && (
         <>
-          <ResponsiveMenuItem onSelect={archive}><Archive className="mr-2 h-4 w-4" />Archive</ResponsiveMenuItem>
-          <ResponsiveMenuItem onSelect={dupe} disabled={note.isLocked}><Copy className="mr-2 h-4 w-4" />Duplicate</ResponsiveMenuItem>
-          <ResponsiveMenuItem onSelect={del} danger><Trash2 className="mr-2 h-4 w-4" />Delete</ResponsiveMenuItem>
+          <ResponsiveMenuItem onSelect={archive}><Archive className="mr-2 h-4 w-4" />{t("note.archive")}</ResponsiveMenuItem>
+          <ResponsiveMenuItem onSelect={dupe} disabled={note.isLocked}><Copy className="mr-2 h-4 w-4" />{t("note.duplicate")}</ResponsiveMenuItem>
+          <ResponsiveMenuItem onSelect={del} danger><Trash2 className="mr-2 h-4 w-4" />{t("common.delete")}</ResponsiveMenuItem>
         </>
       )}
       {status === "archive" && (
         <>
-          <ResponsiveMenuItem onSelect={unarchive}><ArchiveRestore className="mr-2 h-4 w-4" />Unarchive</ResponsiveMenuItem>
-          <ResponsiveMenuItem onSelect={del} danger><Trash2 className="mr-2 h-4 w-4" />Delete</ResponsiveMenuItem>
+          <ResponsiveMenuItem onSelect={unarchive}><ArchiveRestore className="mr-2 h-4 w-4" />{t("note.unarchive")}</ResponsiveMenuItem>
+          <ResponsiveMenuItem onSelect={del} danger><Trash2 className="mr-2 h-4 w-4" />{t("common.delete")}</ResponsiveMenuItem>
         </>
       )}
       {status === "trash" && (
         <>
-          <ResponsiveMenuItem onSelect={restore}><RotateCcw className="mr-2 h-4 w-4" />Restore</ResponsiveMenuItem>
-          <ResponsiveMenuItem onSelect={permanent} danger><XCircle className="mr-2 h-4 w-4" />Delete permanently</ResponsiveMenuItem>
+          <ResponsiveMenuItem onSelect={restore}><RotateCcw className="mr-2 h-4 w-4" />{t("note.restore")}</ResponsiveMenuItem>
+          <ResponsiveMenuItem onSelect={permanent} danger><XCircle className="mr-2 h-4 w-4" />{t("note.deletePermanently")}</ResponsiveMenuItem>
         </>
       )}
 
@@ -220,18 +229,18 @@ function HeaderActions({ note, onBack, lockTrigger }: { note: Note; onBack: () =
       <ResponsiveMenuSeparator />
       {note.isLocked ? (
         <ResponsiveMenuItem disabled>
-          <Lock className="mr-2 h-4 w-4" />Unlock to export
+          <Lock className="mr-2 h-4 w-4" />{t("note.export.locked")}
         </ResponsiveMenuItem>
       ) : (
         <>
           {/* Markdown export is asynchronous (it pulls the note's images into the
               file so it stands on its own); a failure is reported rather than
               leaving an unhandled rejection and no file. */}
-          <ResponsiveMenuItem onSelect={() => { void exportNoteAsMarkdown(note).catch(() => toast("Could not export note", { kind: "error" })); }}>
-            <FileText className="mr-2 h-4 w-4" />Export as Markdown
+          <ResponsiveMenuItem onSelect={() => { void exportNoteAsMarkdown(note).catch(() => toast(t("note.export.failed"), { kind: "error" })); }}>
+            <FileText className="mr-2 h-4 w-4" />{t("note.export.markdown")}
           </ResponsiveMenuItem>
           <ResponsiveMenuItem onSelect={() => exportNoteAsPdf(note)}>
-            <Printer className="mr-2 h-4 w-4" />Export as PDF
+            <Printer className="mr-2 h-4 w-4" />{t("note.export.pdf")}
           </ResponsiveMenuItem>
         </>
       )}
@@ -248,6 +257,8 @@ function HeaderActions({ note, onBack, lockTrigger }: { note: Note; onBack: () =
 // never match. Reduced transparency is handled in index.css by a media query, which
 // is the case that actually needs a non-frosted look.
 export function NoteView({ id, onBack, onStuckChange }: { id: string; onBack: () => void; onStuckChange?: (stuck: boolean) => void }) {
+  const t = useT();
+  const locale = useLocale();
   const { data: note, isLoading } = useNote(id);
   const autosave = useAutoSave(id);
   const reduceMotion = useReducedMotion();
@@ -391,7 +402,7 @@ export function NoteView({ id, onBack, onStuckChange }: { id: string; onBack: ()
   }, [note, focusBody]);
 
   if (isLoading || !note) {
-    return <div className="p-8 text-muted-foreground">Loading…</div>;
+    return <div className="p-8 text-muted-foreground">{t("common.loading")}</div>;
   }
 
   const sessionUnlocked = locked && sessionDoc !== undefined;
@@ -435,7 +446,7 @@ export function NoteView({ id, onBack, onStuckChange }: { id: string; onBack: ()
       aria-modal="true"
       // The note's title names the dialog, so a screen reader announces it the
       // moment the panel receives focus on open.
-      aria-label={note.title?.trim() || "Untitled"}
+      aria-label={note.title?.trim() || t("note.untitled")}
       tabIndex={-1}
       className="note-view note-frosted relative h-full outline-none"
       style={{ ["--note-title-h" as string]: titleH ? `${titleH}px` : undefined }}
@@ -493,7 +504,7 @@ export function NoteView({ id, onBack, onStuckChange }: { id: string; onBack: ()
                   !title && "text-muted-foreground"
                 )}
               >
-                {title || "Untitled"}
+                {title || t("note.untitled")}
               </div>
             ) : (
               <textarea
@@ -503,7 +514,7 @@ export function NoteView({ id, onBack, onStuckChange }: { id: string; onBack: ()
                 onBlur={() => autosave.flush()}
                 // Enter in a title shouldn't insert a newline — commit and move on.
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }}
-                placeholder="Untitled"
+                placeholder={t("note.untitled")}
                 rows={1}
                 className="type-title min-w-0 flex-1 resize-none overflow-hidden break-words bg-transparent py-1 leading-tight outline-none placeholder:text-muted-foreground"
                 disabled={locked && !sessionUnlocked}
@@ -524,8 +535,8 @@ export function NoteView({ id, onBack, onStuckChange }: { id: string; onBack: ()
               lockTrigger={isMobile ? <LockMenuItems note={note} sessionUnlocked={sessionUnlocked} onOpen={setLockMode} /> : undefined}
             />
             {/* Close the note (on the right). */}
-            <Tooltip label="Close" side="bottom">
-              <Button variant="ghost" size="icon" onClick={onBack} aria-label="Close" className="h-11 w-11 shrink-0 sm:h-9 sm:w-9">
+            <Tooltip label={t("common.close")} side="bottom">
+              <Button variant="ghost" size="icon" onClick={onBack} aria-label={t("common.close")} className="h-11 w-11 shrink-0 sm:h-9 sm:w-9">
                 <X className="h-5 w-5 sm:h-4 sm:w-4" />
               </Button>
             </Tooltip>
@@ -540,9 +551,9 @@ export function NoteView({ id, onBack, onStuckChange }: { id: string; onBack: ()
                 format keeps the row on one line, and the save-status check rides at
                 the end of it (it's status, not an action). */}
             <div className={cn("type-meta flex items-center gap-x-2.5 gap-y-0.5", isMobile ? "flex-nowrap whitespace-nowrap" : "flex-wrap")}>
-              <span>Created {(isMobile ? formatStampMobile : formatStamp)(note.createdAt)}</span>
+              <span>{t("noteView.created", { when: (isMobile ? formatStampMobile : formatStamp)(note.createdAt, locale) })}</span>
               <span aria-hidden className="text-[color-mix(in_srgb,var(--muted-foreground)_50%,transparent)]">·</span>
-              <span>Edited {(isMobile ? formatStampMobile : formatStamp)(note.updatedAt)}</span>
+              <span>{t("noteView.edited", { when: (isMobile ? formatStampMobile : formatStamp)(note.updatedAt, locale) })}</span>
               {/* Center the save check in a Close-button-width column so it lines up
                   directly under the ✕ in the header, not flush to the text edge. */}
               {isMobile && showStatus && <span className="ml-auto flex w-11 shrink-0 justify-center"><SaveIndicator state={autosave.state} compact readOnly={sessionUnlocked} /></span>}
@@ -562,7 +573,7 @@ export function NoteView({ id, onBack, onStuckChange }: { id: string; onBack: ()
                 // flips UP when open.
                 className="flex w-full items-center gap-1 rounded-md px-2 py-3 text-xs font-medium text-muted-foreground hover-scrim hover:text-foreground"
               >
-                <span>Details</span>
+                <span>{t("editor.details")}</span>
                 <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", metaOpen && "rotate-180")} />
               </button>
             )}
@@ -591,10 +602,14 @@ export function NoteView({ id, onBack, onStuckChange }: { id: string; onBack: ()
               <div className="mb-5 flex items-start gap-2.5 rounded-lg border bg-[color-mix(in_srgb,var(--muted)_40%,transparent)] px-3.5 py-3">
                 <Eye className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">Read-only.</span> You’re
-                  viewing this locked note for this session — it stays encrypted, and any
-                  edits you make here are not saved. Choose{" "}
-                  <span className="font-medium text-foreground">Remove lock</span> to edit it.
+                  {/* Two nodes in one sentence, so it is split twice: the lead term and
+                      the named action both keep their emphasis, and both stay where the
+                      language puts them rather than where English did. */}
+                  {withSlots(
+                    t("noteView.readOnly.body", { term: SLOT, action: SLOT }),
+                    <span className="font-medium text-foreground">{t("noteView.readOnly.term")}</span>,
+                    <span className="font-medium text-foreground">{t("lock.remove")}</span>
+                  )}
                 </p>
               </div>
             )}
@@ -607,7 +622,7 @@ export function NoteView({ id, onBack, onStuckChange }: { id: string; onBack: ()
                 style={{ ["--lock-reveal-ms" as string]: `${LOCK_REVEAL_MS}ms` }}
               >
                 <Lock className="h-8 w-8" />
-                <p>This note is locked. Unlock it with your passphrase to view its contents.</p>
+                <p>{t("noteView.lockedBody")}</p>
               </div>
             ) : (
               // The wrapper exists purely to carry the blur: `filter` has to apply to

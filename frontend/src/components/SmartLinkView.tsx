@@ -3,6 +3,7 @@ import { X, Link2 } from "@/components/icons";
 import { providerById, parseUrl } from "@/lib/smartLinkProviders";
 import { BRAND_ICONS } from "@/lib/smartLinkIconData";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useT } from "@/lib/i18n";
 
 // Compact, readable form of the URL for the card's secondary line: drop the scheme,
 // a leading www., and any trailing slash; long paths are ellipsised by CSS.
@@ -31,6 +32,7 @@ function openHref(raw: string): string {
  * selectable, deletable, draggable — instead of a run of styled text.
  */
 export function SmartLinkView({ node, editor, deleteNode }: NodeViewProps) {
+  const t = useT();
   const url = String(node.attrs.url ?? "");
   const provider = providerById(String(node.attrs.provider ?? ""));
   const brand = provider?.icon ? BRAND_ICONS[provider.icon] : undefined;
@@ -72,11 +74,11 @@ export function SmartLinkView({ node, editor, deleteNode }: NodeViewProps) {
         {editor.isEditable && (
           // Remove affordance — keeps a converted block from ever being "stuck": editing
           // a link = remove it and paste the new one (re-evaluated against the patterns).
-          <Tooltip label="Remove this link block">
+          <Tooltip label={t("smartLink.remove")}>
             <button
               type="button"
               className="smart-link-remove"
-              aria-label="Remove this link block"
+              aria-label={t("smartLink.remove")}
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteNode(); }}
             >
               <X className="h-4 w-4" />

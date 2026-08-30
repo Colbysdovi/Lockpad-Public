@@ -1,5 +1,6 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SHORTCUT_GROUPS, describeShortcut, keyLabel, type Shortcut } from "@/lib/shortcuts";
+import { useT } from "@/lib/i18n";
 
 // The keyboard shortcut reference.
 //
@@ -41,11 +42,12 @@ function Keycap({ label }: { label: string }) {
  *  only works in one situation is a different fact from one that always works, and
  *  the situation is exactly what someone hunting a non-working key needs told. */
 function ShortcutRow({ shortcut }: { shortcut: Shortcut }) {
+  const t = useT();
   return (
     <div className="flex items-baseline justify-between gap-4 py-1.5">
       <span className="min-w-0 text-sm">
-        {shortcut.action}
-        {shortcut.when && <span className="text-muted-foreground"> — {shortcut.when}</span>}
+        {t(shortcut.action)}
+        {shortcut.when && <span className="text-muted-foreground"> ({t(shortcut.when)})</span>}
       </span>
       <span
         className="flex shrink-0 items-center gap-1"
@@ -67,6 +69,7 @@ export function ShortcutsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Capped against the viewport and scrolling INSIDE, not growing past it. The
@@ -99,9 +102,9 @@ export function ShortcutsDialog({
           way, which is what hands the overflow to the list to scroll. */}
       <DialogContent className="top-1/2 grid-rows-[auto_minmax(0,1fr)] max-h-[80dvh] max-w-2xl overflow-hidden">
         <DialogHeader>
-          <DialogTitle>Keyboard shortcuts</DialogTitle>
+          <DialogTitle>{t("shortcuts.title")}</DialogTitle>
           <DialogDescription>
-            Everything Lockpad does without the mouse, shown for this keyboard.
+            {t("shortcuts.subtitle")}
           </DialogDescription>
         </DialogHeader>
 
@@ -123,9 +126,9 @@ export function ShortcutsDialog({
                 id={`shortcuts-${group.title}`}
                 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
               >
-                {group.title}
+                {t(group.title)}
               </h3>
-              <p className="mb-1 mt-1 text-sm text-muted-foreground">{group.description}</p>
+              <p className="mb-1 mt-1 text-sm text-muted-foreground">{t(group.description)}</p>
               {/* divide-y rather than a gap: the rows are a table of pairs, and a
                   hairline between them keeps the eye on the correct right-hand
                   keycap when the action text is short and the row is wide. */}
