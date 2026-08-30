@@ -362,7 +362,7 @@ echo
 printf '  Waiting for the app to come up'
 ok=0
 for _ in $(seq 1 30); do
-  if $DC "${DC_FILES[@]}" exec -T backend wget -qO- http://localhost:4000/api/health >/dev/null 2>&1; then
+  if $DC "${DC_FILES[@]}" exec -T backend wget -qO- http://127.0.0.1:4000/api/health >/dev/null 2>&1; then
     ok=1; break
   fi
   printf '.'; sleep 2
@@ -488,7 +488,7 @@ if [ "$ok" -eq 1 ] && [ "$TS_WANTED" -eq 1 ]; then
     warn "The usual cause is an auth key that has expired or was already used —"
     warn "generate a fresh one and re-run this installer to try again."
     # The distinction the user actually needs: this failure is not their app.
-    if $DC "${DC_FILES[@]}" exec -T backend wget -qO- http://localhost:4000/api/health >/dev/null 2>&1; then
+    if $DC "${DC_FILES[@]}" exec -T backend wget -qO- http://127.0.0.1:4000/api/health >/dev/null 2>&1; then
       info "Your notes are unaffected — Lockpad itself is running and reachable below."
     else
       warn "Lockpad also stopped responding. Check:  $DC -f $COMPOSE_FILE logs -f"

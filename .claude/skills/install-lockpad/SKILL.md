@@ -74,7 +74,7 @@ The installer does this itself, but if you ran anything manually, confirm:
 
 ```bash
 docker compose -f docker-compose.public.yml ps
-docker compose -f docker-compose.public.yml exec -T backend wget -qO- http://localhost:4000/api/health
+docker compose -f docker-compose.public.yml exec -T backend wget -qO- http://127.0.0.1:4000/api/health
 ```
 
 Expect all containers up and `{"status":"ok"}`. A confident "all set" over a broken install is worse than no help.
