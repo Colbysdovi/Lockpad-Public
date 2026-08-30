@@ -91,12 +91,12 @@ In order, because each rules out the next:
    ```bash
    docker compose logs -f
    ```
-3. **If you are using the `.ts.net` address, is Tailscale switched on on the device you
+3. **If you are using the `.ts.net` address, is Tailscale running on the device you
    are browsing from?** This catches more cases than it should. Both devices need to show
    as connected.
 4. **Is the app itself healthy?** From the machine running it:
    ```bash
-   docker compose exec backend wget -qO- http://localhost:4000/api/health
+   docker compose exec backend wget -qO- http://127.0.0.1:4000/api/health
    ```
    A JSON response means the app is fine and the problem is between you and it — network,
    Tailscale, or the address you typed. [DEPLOY.md §6](DEPLOY.md) has the fuller set of

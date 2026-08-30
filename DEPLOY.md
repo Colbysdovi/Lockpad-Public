@@ -209,7 +209,7 @@ Restore with `./scripts/restore.sh backups/lockpad-<timestamp>.sql.gz`.
 docker compose ps
 docker compose logs -f backend
 curl -I http://localhost:5173/                     # frontend → 200
-docker compose exec backend wget -qO- http://localhost:4000/api/health   # {"status":"ok"}
+docker compose exec backend wget -qO- http://127.0.0.1:4000/api/health   # {"status":"ok"}
 ```
 
 Every command above runs **on the NAS**, and that is their blind spot: they all reach
