@@ -4,7 +4,7 @@ Lockpad handles personal notes, including end-to-end encrypted ones, so security
 
 ## 👤 A note on my background
 
-I'm a designer with basic knowledge in development — that's actually a main reason I'm building Lockpad with heavy use of AI coding assistance (Claude) in the first place. I'm actively working to understand the codebase better and become less ignorant of it over time, but please don't assume I have the same level of security or development knowledge you do when you write in. A plain-language explanation of the impact and how to reproduce it will get you a faster, more useful response than technical shorthand alone. I'll ask questions if I need to — thanks in advance for your patience.
+I'm a designer with basic knowledge in development, that's actually a main reason I'm building Lockpad with heavy use of AI coding assistance (Claude) in the first place. I'm actively working to understand the codebase better and become less ignorant of it over time, but please don't assume I have the same level of security or development knowledge you do when you write in. A plain-language explanation of the impact and how to reproduce it will get you a faster, more useful response than technical shorthand alone. I'll ask questions if I need to, thanks in advance for your patience.
 
 ## 📮 Reporting a vulnerability
 
@@ -18,7 +18,7 @@ You should receive an acknowledgment within **5 business days**. From there, exp
 
 ## 🔖 Supported versions
 
-Lockpad is a single, actively-developed self-hosted release — there's no separate LTS branch. Security fixes land on `main` and the latest tagged release. Running the current release (and pulling updates when they're announced) is the only supported configuration.
+Lockpad is a single, actively-developed self-hosted release, there's no separate LTS branch. Security fixes land on `main` and the latest tagged release. Running the current release (and pulling updates when they're announced) is the only supported configuration.
 
 ## 🎯 Scope
 
