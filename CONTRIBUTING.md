@@ -1,6 +1,6 @@
 # 🤝 Contributing to Lockpad
 
-Thanks for considering a contribution — Lockpad is a solo designer's, actively-maintained side project, and outside contributions are warmly welcome.
+Thanks for considering a contribution. Lockpad is a solo designer's, actively-maintained side project, and outside contributions are warmly welcome.
 
 ## 🧰 Before you start
 
