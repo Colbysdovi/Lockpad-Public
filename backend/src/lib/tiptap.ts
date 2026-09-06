@@ -134,6 +134,26 @@ export function makePreviewBlocks(doc: unknown, maxBlocks = 6, maxLen = 140): Pr
         if (t) blocks.push({ type: "code", text: t });
         break;
       }
+      case "table": {
+        // Without this case a table falls to `default` below, where every cell in
+        // every row is concatenated into one run-on line: "Option Cost Verdict
+        // Self-host Hardware you already own Chosen Managed…". That is not a
+        // preview of a table, it is the table with its shape thrown away.
+        //
+        // The stand-in is the HEADER row — the user's own words for what the
+        // columns are — joined with a separator. It says what the table is about
+        // in the space of one line, and it needs no wording of its own, which
+        // matters because this runs on the server and has no locale to write in.
+        const header = (n.content ?? [])[0];
+        const labels = ((header as TipTapNode | undefined)?.content ?? [])
+          .map((c) => extractPlainText(c).trim())
+          .filter(Boolean);
+        const t = clip(labels.join(" · "));
+        // An entirely blank header row leaves nothing worth showing, so the table
+        // is skipped here exactly as an empty paragraph is.
+        if (t) blocks.push({ type: "text", text: t });
+        break;
+      }
       default: {
         // paragraph and any other block → its text (skipped when empty).
         const t = clip(extractPlainText(n));
@@ -143,6 +163,11 @@ export function makePreviewBlocks(doc: unknown, maxBlocks = 6, maxLen = 140): Pr
   }
   return blocks;
 }
+
+/** How many of a table's rows reach a card preview, header row included. A card is
+ *  about six lines tall, so a table has to be cut somewhere; four rows shows the
+ *  headings plus enough beneath them to read as a table rather than as a stray row. */
+const PREVIEW_TABLE_ROWS = 4;
 
 /** A bounded, render-ready slice of the note's document: the first few meaningful
  *  top-level blocks, keeping the *real* node structure (heading levels, inline
@@ -176,6 +201,22 @@ export function makePreviewDoc(doc: unknown, maxBlocks = 6): TipTapNode | null {
       // simply never appear on a card, making the note look different from itself.
       out.push(n);
       budget -= 1;
+    } else if (n.type === "table") {
+      // Two reasons a table needs its own branch rather than the text test below.
+      //
+      // First, an EMPTY table has no text at all, so `isEmpty` would throw it away
+      // as a spacer paragraph and the note would preview as though the table were
+      // not there — the same trap already handled for images, dividers and smart
+      // links, which also carry no text.
+      //
+      // Second, a table is the one block that can be arbitrarily tall. A forty-row
+      // table would render forty rows onto a card built for about six lines, so it
+      // is cut to a few rows here. The header row is always among them, which is
+      // what keeps the slice readable as a table rather than as loose cells.
+      const allRows = (n.content ?? []).filter((r): r is TipTapNode => !!r && typeof r === "object");
+      const kept = allRows.slice(0, Math.min(PREVIEW_TABLE_ROWS, Math.max(1, budget)));
+      out.push({ ...n, content: kept });
+      budget -= kept.length;
     } else if (n.type === "smartLink") {
       // A smart-link is an atom whose meaning lives in its attrs (url/provider), not
       // in child text — so the isEmpty() text check below would wrongly drop it as a

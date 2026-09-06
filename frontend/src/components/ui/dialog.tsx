@@ -10,10 +10,14 @@ export const DialogTrigger = DialogPrimitive.Trigger;
 
 export const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { hideClose?: boolean; animClassName?: string; mobileSheet?: boolean }
->(({ className, children, hideClose, animClassName = "dialog-anim", mobileSheet, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { hideClose?: boolean; animClassName?: string; mobileSheet?: boolean; overlayClassName?: string }
+>(({ className, children, hideClose, animClassName = "dialog-anim", mobileSheet, overlayClassName, ...props }, ref) => (
   <DialogPrimitive.Portal>
-    <DialogPrimitive.Overlay className="overlay-anim fixed inset-0 z-50 bg-[var(--backdrop)] backdrop-blur-sm" />
+    {/* The scrim exists to push the app back while a dialog is in front of it.
+        `overlayClassName` is for the one case where there is no app behind to push
+        back — the first-run wizard, which opens over an empty canvas — and dimming
+        nothing by 55% only makes the first screen of Lockpad dark. */}
+    <DialogPrimitive.Overlay className={cn("overlay-anim fixed inset-0 z-50 bg-[var(--backdrop)] backdrop-blur-sm", overlayClassName)} />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(

@@ -10,6 +10,10 @@ import { SmartLink } from "./smartLink";
 import { NoteLink } from "./noteLink";
 import { Highlight } from "./highlight";
 import { NoteImage } from "./imageNode";
+import { TableWithScroll } from "./tableNode";
+import TableRow from "@tiptap/extension-table-row";
+import TableHeader from "@tiptap/extension-table-header";
+import TableCell from "@tiptap/extension-table-cell";
 import { cn } from "@/lib/utils";
 
 // The card preview renders the note's own content through the SAME extensions and
@@ -49,6 +53,19 @@ const extensions = [
   // because a card preview has no note to resolve against. It can therefore lag a
   // rename until the note is next opened, where the live chip corrects itself.
   NoteLink,
+  // And a table — the fourth node to need registering here for the same reason, and
+  // the one with the widest blast radius. `generateHTML` THROWS on a node type it
+  // does not know, the catch below turns that into an empty string, and the card then
+  // renders nothing at all. Not a table missing from the preview: the whole preview
+  // gone, for any note containing one table anywhere in it.
+  //
+  // These are the same four node types the editor registers, and TableWithScroll is
+  // the shared node (components/tableNode.ts) rather than the plain one, so a card's
+  // table has the same wrapper element the stylesheet targets in the editor.
+  TableWithScroll,
+  TableRow,
+  TableHeader.configure({ HTMLAttributes: { scope: "col" } }),
+  TableCell,
 ];
 
 export function NotePreview({ doc, className }: { doc: unknown; className?: string }) {

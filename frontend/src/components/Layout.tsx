@@ -4,6 +4,7 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Search, Plus, Sun, Moon, Menu, PanelLeftClose, LogOut, MoreVertical, Keyboard } from "@/components/icons";
 import { Sidebar } from "./Sidebar";
 import { SearchPalette } from "./SearchPalette";
+import type { SearchScope } from "@/lib/types";
 import { ShortcutsDialog } from "./ShortcutsDialog";
 import { formatShortcut } from "@/lib/shortcuts";
 import { NotePrintHost } from "./NotePrintHost";
@@ -65,6 +66,10 @@ export function Layout() {
   // Search query is kept here so it survives closing the palette — reopening
   // restores the same text + result list.
   const [searchQuery, setSearchQuery] = useState("");
+  // The scope lives here beside the query, and for the same reason: closing the palette
+  // and reopening it should put you back where you were, not reset you to searching the
+  // whole library again.
+  const [searchScope, setSearchScope] = useState<SearchScope | null>(null);
   const { createNote } = useNewNote();
   const { theme, toggle: toggleTheme } = useTheme();
   const t = useT();
@@ -341,7 +346,14 @@ export function Layout() {
 
       {isMobile && <MobileNoteSheet noteId={noteId} onClose={closeNote} />}
 
-      <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} query={searchQuery} onQueryChange={setSearchQuery} />
+      <SearchPalette
+        open={searchOpen}
+        onOpenChange={setSearchOpen}
+        query={searchQuery}
+        onQueryChange={setSearchQuery}
+        scope={searchScope}
+        onScopeChange={setSearchScope}
+      />
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
       {/* Print-to-PDF host (renders the note into a print-only portal on demand). */}
       <NotePrintHost />

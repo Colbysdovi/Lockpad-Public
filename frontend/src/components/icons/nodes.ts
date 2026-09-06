@@ -77,6 +77,7 @@ export const NODES: Record<string, IconNode[]> = {
   SquareCode: [["path",{"d":"m10 9-3 3 3 3"}],["path",{"d":"m14 15 3-3-3-3"}],["rect",{"width":"18","height":"18","x":"3","y":"3","rx":"2"}]],
   Strikethrough: [["path",{"d":"M16 4H9a3 3 0 0 0-2.83 4"}],["path",{"d":"M14 12a4 4 0 0 1 0 8H6"}],["line",{"x1":"4","x2":"20","y1":"12","y2":"12"}]],
   Sun: [["circle",{"cx":"12","cy":"12","r":"4"}],["path",{"d":"M12 2v2"}],["path",{"d":"M12 20v2"}],["path",{"d":"m4.93 4.93 1.41 1.41"}],["path",{"d":"m17.66 17.66 1.41 1.41"}],["path",{"d":"M2 12h2"}],["path",{"d":"M20 12h2"}],["path",{"d":"m6.34 17.66-1.41 1.41"}],["path",{"d":"m19.07 4.93-1.41 1.41"}]],
+  Table: [["path",{"d":"M12 3v18"}],["rect",{"width":"18","height":"18","x":"3","y":"3","rx":"2"}],["path",{"d":"M3 9h18"}],["path",{"d":"M3 15h18"}]],
   Tag: [["path",{"d":"M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"}],["circle",{"cx":"7.5","cy":"7.5","r":".5","fill":"currentColor"}]],
   Trash2: [["path",{"d":"M3 6h18"}],["path",{"d":"M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"}],["path",{"d":"M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"}],["line",{"x1":"10","x2":"10","y1":"11","y2":"17"}],["line",{"x1":"14","x2":"14","y1":"11","y2":"17"}]],
   Undo2: [["path",{"d":"M9 14 4 9l5-5"}],["path",{"d":"M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"}]],
@@ -147,6 +148,7 @@ export const KEBAB: Record<string, string> = {
   SquareCode: "square-code",
   Strikethrough: "strikethrough",
   Sun: "sun",
+  Table: "table",
   Tag: "tag",
   Trash2: "trash-2",
   Undo2: "undo-2",
@@ -157,3 +159,14 @@ export const KEBAB: Record<string, string> = {
 };
 
 export type IconName = keyof typeof NODES;
+
+/** The same geometry as an inline SVG string, for the parts of the app that draw
+ *  their menus as plain DOM rather than as React — the slash menu (slashCommand.ts)
+ *  and the table cell handle (tableCellHandle.ts). Matches the toolbar's stroke look
+ *  (24 viewBox, 2px round strokes) so an icon reads identically wherever it lands. */
+export function nodeIconSvg(name: IconName, size = 16): string {
+  const inner = NODES[name]
+    .map(([tag, attrs]) => `<${tag} ${Object.entries(attrs).map(([k, v]) => `${k}="${v}"`).join(" ")}/>`)
+    .join("");
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+}

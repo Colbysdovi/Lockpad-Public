@@ -21,7 +21,7 @@ If someone asks you to **install, set up, self-host, deploy, update, or repair L
 
 Overlays compose together. Running the tailnet and LAN-TLS paths at once is a supported, common setup.
 
-Images are `ghcr.io/<owner>/lockpad-backend` and `ghcr.io/<owner>/lockpad-frontend`, built and published by CI on pushes to `main`, on `v*` tags, and on manual dispatch.
+Images are `ghcr.io/<owner>/lockpad-backend` and `ghcr.io/<owner>/lockpad-frontend`, built and published by CI on pushes to `main`, on `v*` tags, and on manual dispatch. The two triggers do different jobs: a `main` push publishes `sha-<short>` and is the CI check the README's badge reports, while a `v*` tag publishes both `vX.Y.Z` and `latest`. `latest` therefore tracks the newest release, not the newest commit.
 
 ## 🚨 Things that are load-bearing, not incidental
 

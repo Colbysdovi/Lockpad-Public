@@ -48,8 +48,11 @@ export function SmartLinkView({ node, editor, deleteNode }: NodeViewProps) {
           target="_blank"
           rel="noopener noreferrer nofollow"
           className="smart-link-main"
-          // Open explicitly so the click can't drop the caret into the atom; the
-          // editor's own handleClick would also open it, this just makes it robust.
+          // The only thing that opens a smart link. The editor's generic link
+          // handler used to open it as well, which meant one click produced two
+          // identical tabs; it now hands clicks inside a `.smart-link` straight
+          // back here (see Editor.tsx handleClick). preventDefault also keeps the
+          // click from dropping a caret into the atom.
           onClick={(e) => {
             if (!valid) return;
             e.preventDefault();

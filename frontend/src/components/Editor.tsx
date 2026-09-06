@@ -1,9 +1,15 @@
-import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
 import { Editor as TipTapEditor, EditorContent, BubbleMenu, type EditorOptions } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import TaskItem from "@tiptap/extension-task-item";
+import TableRow from "@tiptap/extension-table-row";
+import TableHeader from "@tiptap/extension-table-header";
+import TableCell from "@tiptap/extension-table-cell";
+import { TableWithScroll } from "./tableNode";
+import { TABLE_ACTIONS } from "./tableActions";
+import { TableCellHandle } from "./tableCellHandle";
 import { TaskListWithChecked } from "./taskListView";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { common, createLowlight } from "lowlight";
@@ -22,7 +28,7 @@ import { matchProvider } from "@/lib/smartLinkProviders";
 // when a code block has none set.
 const lowlight = createLowlight(common);
 import {
-  Ban, Bold, Italic, Strikethrough, Highlighter, Image as ImageIcon, Loader2, X, Heading1, Heading2, Heading3, List, ListOrdered, ListChecks, Quote, Code, SquareCode, Link2, Undo2, Redo2,
+  Ban, Bold, Italic, Strikethrough, Highlighter, Image as ImageIcon, Loader2, X, Heading1, Heading2, Heading3, List, ListOrdered, ListChecks, Quote, Code, SquareCode, Link2, Undo2, Redo2, Table as TableIcon,
 } from "@/components/icons";
 import { Tooltip } from "@/components/ui/tooltip";
 import { ResponsivePopover } from "@/components/ui/responsive-popover";
@@ -34,6 +40,7 @@ import { ImageError, prepareImage, uploadNoteImage } from "@/lib/noteImages";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useT, tOutsideReact } from "@/lib/i18n";
+import { EASE_FOLLOW_CSS } from "@/lib/motion";
 
 // TipTap rich-text editor (spec §3.3). Toolbar + selection bubble menu expose
 // bold/italic/H1–H3/lists/quote/code/link. Paste is sanitized (spec §3.10 A):
@@ -144,6 +151,120 @@ function LinkButton({ editor }: { editor: TipTapEditor }) {
           }}
           className="max-sm:h-12 max-sm:text-base"
         />
+      </div>
+    </ResponsivePopover>
+  );
+}
+
+// Table actions: add or remove a row or a column.
+//
+// These live in the PERSISTENT toolbar rather than in a floating control beside the
+// table, and that is the whole design decision. The app's only contextual surface is
+// the selection bubble, which is desktop-only (`!isMobile` on its mount below) — so a
+// floating control would have meant inventing a touch affordance from nothing, for a
+// feature whose requirement is that it works everywhere. The toolbar is already on
+// screen on both, already scrolls horizontally when it runs out of room, and is
+// already reachable by keyboard.
+//
+// The button appears only while the caret is inside a table, so it costs nothing the
+// rest of the time. Actions are a list of WORDS rather than a row of glyphs: there is
+// no icon that distinguishes "insert row above" from "insert row below" at 18px, and
+// getting it wrong means silently editing the wrong part of someone's table.
+function TableButton({ editor }: { editor: TipTapEditor }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const firstItemRef = useRef<HTMLButtonElement>(null);
+
+  // Move focus onto the first action when the menu opens, so a keyboard user is
+  // inside it rather than still on the trigger. Measured, not assumed: without this
+  // the menu opened with focus left on the trigger, and the next Tab jumped straight
+  // PAST the menu into the note body — the actions were on screen and unreachable
+  // without a mouse. (The Link popover next door does not need this because its first
+  // child is an input, which takes focus on its own.)
+  //
+  // setTimeout rather than requestAnimationFrame: the callback has to survive an
+  // environment where animation frames never run, and a zero timeout is enough to
+  // land after the popover has mounted its content.
+  useEffect(() => {
+    if (!open) return;
+    const id = setTimeout(() => firstItemRef.current?.focus(), 0);
+    return () => clearTimeout(id);
+  }, [open]);
+
+  // Each action closes the menu and returns focus to the document, so the caret is
+  // back where the user left it and the next action can be taken straight away.
+  const run = (fn: () => void) => () => {
+    fn();
+    setOpen(false);
+  };
+
+  // The list itself lives in tableActions.ts: the per-cell handle offers the same
+  // actions from plain DOM, and two menus transcribing one list is how they drift
+  // apart. `group` decides where the dividers fall, `danger` the colour, and
+  // `enabled` whether a move at the edge of the table is offered at all.
+  const items = TABLE_ACTIONS;
+
+  return (
+    <ResponsivePopover
+      open={open}
+      onOpenChange={setOpen}
+      title={t("editor.table.actions")}
+      triggerLabel={t("editor.table.actions")}
+      contentClassName="w-56"
+      trigger={
+        <button
+          type="button"
+          aria-label={t("editor.table.actions")}
+          // The toolbar finds this button by attribute to scroll it into view on
+          // mobile (see Toolbar). A ref would have to be threaded through
+          // ResponsivePopover, which renders a different trigger on each surface;
+          // the marker survives both and couples the two files by one string.
+          data-table-actions=""
+          className="icon-press shrink-0 rounded-md p-2.5 hover-scrim sm:p-2"
+        >
+          <TableIcon className="h-[18px] w-[18px]" />
+        </button>
+      }
+    >
+      <div className="p-1 max-sm:px-2 max-sm:pb-4 max-sm:pt-1">
+        {items.map((item, i) => (
+          <Fragment key={item.key}>
+            {/* A DIVIDER ELEMENT, not a border on the first row of a group. The rows
+                are rounded (`rounded-sm`), and a border follows its own element's
+                radius — so `border-t` on a rounded button curved up at both ends and
+                read as part of that row rather than as a break between two groups. A
+                separate 1px element has no radius of its own and stays straight. It is
+                the same divider the slash menu and the app's action menus draw
+                (`my-1 h-px bg-border`), so all three break sections identically.
+
+                Drawn wherever the group changes — add, then move, then remove — so
+                "insert row above" is never the neighbour of "delete row" by accident,
+                and adding an action in the middle of the list cannot strand a line. */}
+            {i > 0 && item.group !== items[i - 1].group && <div className="my-1 h-px bg-border" />}
+            <button
+              ref={i === 0 ? firstItemRef : undefined}
+              type="button"
+              // A move at the edge of the table cannot go anywhere. Greyed out rather
+              // than silently doing nothing, so the edge is visible before the press.
+              disabled={item.enabled ? !item.enabled(editor) : false}
+              onClick={run(() => item.run(editor))}
+              // Same shape as a slash-menu row, so the two menus read as one system.
+              // A real <button> rather than a div: it is tabbable and Enter-activated
+              // for free, which is the accessibility requirement, not a styling detail.
+              className={cn(
+                "flex w-full items-center rounded-sm px-2 py-1.5 text-left text-sm hover-scrim max-sm:py-3 max-sm:text-base",
+                // Red, the same way every other destructive row in the app is red
+                // (see ResponsiveMenuItem's `danger`). The colour is reinforcement
+                // rather than the message: each label already begins with "Delete",
+                // so nothing here depends on seeing the hue.
+                item.danger && "text-destructive",
+                "disabled:pointer-events-none disabled:opacity-40"
+              )}
+            >
+              {t(item.key)}
+            </button>
+          </Fragment>
+        ))}
       </div>
     </ResponsivePopover>
   );
@@ -265,6 +386,109 @@ function Toolbar({ editor, canInsertImages }: { editor: TipTapEditor; canInsertI
     ro.observe(el);
     return () => { el.removeEventListener("scroll", update); ro.disconnect(); };
   }, [editor]);
+  // ── The toolbar's height change, eased ───────────────────────────────────────
+  //
+  // Above `sm:` the button row WRAPS, so the table button appearing and disappearing
+  // as the caret enters and leaves a table flips the toolbar between one line and two.
+  // Instantly, which reads as a glitch rather than as the toolbar telling you
+  // something. This eases that one change, matching the 160ms the same toolbar
+  // already uses for its pinning transition.
+  //
+  // It is driven by a ResizeObserver on the INNER row rather than by "is the caret in
+  // a table", and that is deliberate on three counts:
+  //   • it fires only when the height genuinely changes, so a toolbar with room for
+  //     the button on one line animates nothing;
+  //   • it needs no knowledge of which overflow strategy is active — below `sm:` the
+  //     row scrolls instead of wrapping, its height never changes, and this simply
+  //     never runs;
+  //   • it measures the inner row, whose height is not touched by the animation on the
+  //     outer element, so there is no feedback loop between the two.
+  useEffect(() => {
+    const outer = toolbarRef.current;
+    const inner = innerRef.current;
+    if (!outer || !inner || typeof ResizeObserver === "undefined") return;
+    // The border box the outer adds around the inner row (its 1px top and bottom
+    // borders). Measured once, while nothing is animating, rather than written down
+    // as a number here that the CSS could quietly change underneath.
+    const chrome = outer.offsetHeight - inner.offsetHeight;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    let prev = { h: 0, w: 0 };
+    let anim: Animation | null = null;
+    const ro = new ResizeObserver(() => {
+      const h = inner.offsetHeight;
+      const w = inner.offsetWidth;
+      const from = prev.h;
+      const widthChanged = prev.w !== 0 && w !== prev.w;
+      prev = { h, w };
+      // First measurement, no change, or a width change (a window resize, which is
+      // the user's own continuous gesture and does not want easing on top).
+      if (!from || h === from || widthChanged) return;
+      if (reduce?.matches) return;
+      // Cancelling the one in flight rather than stacking: entering and leaving a
+      // table repeatedly at the wrap threshold otherwise queues animations that run
+      // after the height has already moved on.
+      anim?.cancel();
+      // The row is already at its new height while the box animates to meet it, so
+      // without this the second line is drawn outside the toolbar's rounded border
+      // for the length of the animation.
+      outer.style.overflow = "hidden";
+      const a = outer.animate(
+        [{ height: `${from + chrome}px` }, { height: `${h + chrome}px` }],
+        { duration: 160, easing: EASE_FOLLOW_CSS },
+      );
+      anim = a;
+      const done = () => { if (anim === a) { outer.style.overflow = ""; anim = null; } };
+      a.addEventListener("finish", done);
+      a.addEventListener("cancel", done);
+    });
+    ro.observe(inner);
+    return () => { ro.disconnect(); anim?.cancel(); outer.style.overflow = ""; };
+  }, [editor]);
+
+  // ── Mobile: bring the table button into view when the caret enters a table ───
+  //
+  // Below `sm:` the row scrolls sideways and is already wider than the phone, so the
+  // table button is appended somewhere off the right edge. Nothing tells you it is
+  // there, and there is no reason to go looking — the discoverability problem is
+  // total, not partial.
+  //
+  // Fired on the TRANSITION into a table, never while inside one: a user who scrolls
+  // the row back to bold while still editing the table must not be dragged to the
+  // right again on their next keystroke.
+  const inTable = editor.isActive("table");
+  const wasInTable = useRef(false);
+  useEffect(() => {
+    const entered = inTable && !wasInTable.current;
+    wasInTable.current = inTable;
+    const inner = innerRef.current;
+    if (!entered || !inner) return;
+    // Desktop wraps, so the button is on screen by construction and there is nothing
+    // to scroll. Asking the element whether it actually overflows keys this off the
+    // strategy that is really in force rather than off a breakpoint written twice.
+    if (inner.scrollWidth <= inner.clientWidth) return;
+    const btn = inner.querySelector<HTMLElement>("[data-table-actions]");
+    if (!btn) return;
+    const b = btn.getBoundingClientRect();
+    const r = inner.getBoundingClientRect();
+    if (b.left >= r.left && b.right <= r.right) return; // already fully visible: no motion
+    // Just far enough, from wherever the row happens to be scrolled to — plus a small
+    // margin so the button does not land flush against the fading edge.
+    const delta = b.right > r.right ? b.right - r.right + 12 : b.left - r.left - 12;
+    // Stored first, matching the height effect above and tableCellHandle.ts, so the
+    // same check reads the same in all three places.
+    //
+    // Not a crash guard, and it is worth writing that down: `window.matchMedia?.(…).matches`
+    // does NOT throw when matchMedia is missing. Optional chaining short-circuits the
+    // WHOLE chain, so the `.matches` after it is never evaluated and the expression is
+    // simply `undefined`. Checked in a browser rather than argued about. This is
+    // consistency, nothing more.
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    inner.scrollTo({
+      left: Math.max(0, inner.scrollLeft + delta),
+      behavior: reduceMotion?.matches ? "auto" : "smooth",
+    });
+  }, [inTable]);
+
   // Compose the mask from the two edges (24px taper). Undefined when nothing is
   // hidden, so the strip renders crisp with no fade at all.
   const maskImage = (() => {
@@ -380,6 +604,15 @@ function Toolbar({ editor, canInsertImages }: { editor: TipTapEditor; canInsertI
           </ToolbarButton>
         )}
         <LinkButton editor={editor} />
+        {/* Only while the caret is actually in a table — the rest of the time these
+            actions have nothing to act on, and a permanently-present button that is
+            usually inert is worse than one that appears when it means something. */}
+        {editor.isActive("table") && (
+          <>
+            <ToolbarDivider />
+            <TableButton editor={editor} />
+          </>
+        )}
         </div>
       </div>
     </>
@@ -521,6 +754,41 @@ export function Editor({
       Placeholder.configure({ placeholder: tOutsideReact("editor.placeholder") }),
       TaskListWithChecked.configure({ showCheckedFold: collapseChecked }),
       TaskItem.configure({ nested: true }),
+      // A table is four separate node types — the table, its rows, its header cells and
+      // its body cells — so it arrives as four packages, the same one-package-per-node
+      // shape as the task list above. All four are pinned to an EXACT version rather
+      // than a caret range: `npm install @tiptap/extension-table` with no version
+      // resolves to the 3.x line, which peer-requires a TipTap v3 core this app does
+      // not have. The pin matches every other @tiptap package here (2.27.2) so the
+      // whole editor moves as one piece.
+      //
+      // `resizable` is deliberately left off for now — dragging a column edge is its
+      // own piece of work, and the handle it draws would otherwise appear before
+      // anything responds to it.
+      // Wrapped so a wide table scrolls inside itself — see tableNode.ts.
+      //
+      // `resizable` turns on drag-to-resize column edges. It is switched on for
+      // everyone here and then hidden from touch in CSS rather than being decided in
+      // JS, because the thing that decides it is a device capability, not a screen
+      // width: a narrow window on a laptop still has a mouse, and a wide tablet still
+      // does not. `@media (pointer: coarse)` asks the real question.
+      //
+      // Why it has to be hidden at all: prosemirror-tables drives the resize entirely
+      // from mousedown/mousemove/mouseup (dist/index.cjs, the columnResizing plugin —
+      // no pointer or touch events anywhere in it), so a finger cannot work the handle
+      // it draws. A visible control that does nothing is worse than no control.
+      TableWithScroll.configure({ resizable: true, lastColumnResizable: false }),
+      TableRow,
+      // Header cells announce which column they head. Without `scope`, a screen reader
+      // sees a grid of unrelated cells and cannot say "Price" when it reads the value
+      // underneath it — the association is only visual, which is exactly what the
+      // accessibility requirement rules out.
+      TableHeader.configure({ HTMLAttributes: { scope: "col" } }),
+      TableCell,
+      // A second, pointer-only entry point to the table actions, beside the cell that
+      // holds the selection. The toolbar's button stays exactly as it is — this adds a
+      // path, it does not replace one, and it is never a keyboard stop.
+      TableCellHandle,
       // Highlight is ours rather than @tiptap/extension-highlight so the colour is
       // stored by name and resolved per theme — see components/highlight.ts.
       Highlight,
@@ -538,8 +806,30 @@ export function Editor({
       // dropping the caret into it. Guarded to web/mail/tel schemes so a stray
       // javascript:/data: href can't be launched. Returning true marks the click
       // handled so ProseMirror doesn't also place the cursor inside the link.
+      //
+      // ── Two node views are exempt, and the exemption is the point ─────────────
+      //
+      // The note-link chip and the smart-link card are both <a> elements living
+      // inside the editor, so the generic rule below used to swallow their clicks
+      // too — and it fires FIRST, because ProseMirror listens on the editor's own
+      // DOM node while React listens up at the app root. Two visible bugs came out
+      // of that. A note reference opened the target in a NEW BROWSER TAB (its href
+      // is a real `/?note=<id>`, which matches the https test) as well as in the
+      // panel, when clicking a reference should do exactly what the Links row in
+      // the header does: swap the note in the panel you are already in. And a
+      // smart-link card opened its URL TWICE, in two tabs, because both this
+      // handler and the card's own onClick called window.open.
+      //
+      // So the anchors that belong to a node view are handed back to that node
+      // view. Returning true still stops ProseMirror dropping a caret into the
+      // atom, and still prevents the browser following the href; it just does not
+      // decide what the click MEANS. NoteLinkView and SmartLinkView do that, each
+      // in its own onClick, which is where the knowledge of what the thing is
+      // already lives.
       handleClick: (_view, _pos, event) => {
-        const a = (event.target as HTMLElement | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+        const el = event.target as HTMLElement | null;
+        if (el?.closest?.(".note-link, .smart-link")) return true;
+        const a = el?.closest?.("a[href]") as HTMLAnchorElement | null;
         if (!a) return false;
         if (/^(https?|mailto|tel):/i.test(a.href)) {
           window.open(a.href, "_blank", "noopener,noreferrer");

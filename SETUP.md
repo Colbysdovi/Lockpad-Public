@@ -22,7 +22,9 @@ install script checks for it and tells you what is missing before it changes any
 
 **A Tailscale account, if you want your notes away from home.** Free for personal use, and
 [FAQ.md](FAQ.md#-what-is-tailscale-and-do-i-need-it) explains what it is and why Lockpad
-uses it. Skip it if the app will only ever be used on your home network.
+uses it. Skip it if the app will only ever be used on your home network — or if you
+already have your own way to reach a server remotely, which [DEPLOY.md §10](DEPLOY.md)
+covers instead.
 
 One more thing worth knowing before you start: **Lockpad is a single-person app.** There is
 one password for the whole thing and no user accounts. Anyone with that password sees every
@@ -87,7 +89,9 @@ and a single-use key is enough.
 From there it does the rest: brings up the Tailscale container, waits for it to join,
 and prints the `https://…ts.net` address alongside your local one.
 
-Say no — or press Enter — and nothing about the install changes.
+Say no — or press Enter — and nothing about the install changes. Saying no is not
+"no remote access, ever": it also covers "I will expose this myself", which
+[DEPLOY.md §10](DEPLOY.md) walks through.
 
 > If the key has expired or was already used, the script tells you, leaves your notes
 > running and reachable exactly as they were, and clears the bad key so you can re-run

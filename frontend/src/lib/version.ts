@@ -36,6 +36,7 @@ export const IS_RELEASE = /^v\d+\.\d+\.\d+(?:[-+].+)?$/.test(APP_VERSION);
  *  forgetting to add one harmless rather than a blank on screen. */
 const RELEASE_NAMES: Record<string, string> = {
   "1.0": "Ganvié",
+  "1.1": "Abomey",
 };
 
 /** The name for this build, or null if there isn't one — an untagged build never gets a

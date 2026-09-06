@@ -44,24 +44,25 @@ export default function App() {
     return <ServerUnreachable />;
   }
 
-  // Mounted beside the routes rather than inside Layout, because the welcome
-  // animation covers the whole viewport and should not be a child of the sidebar
-  // and top bar it is meant to precede. It renders nothing at all for anyone who
-  // has already been onboarded, which is everyone except a genuinely new install.
+  // The route table is WRAPPED by the gate, not placed beside it, and that nesting
+  // is the whole mechanism: on a genuinely new install the gate withholds everything
+  // below until the welcome animation and the wizard are done, so the app is never
+  // glimpsed underneath them, and then hands it back with a slow fade up from the
+  // page canvas. On every other load it is a plain passthrough that renders the
+  // routes and no extra markup — see OnboardingGate for the full sequence.
   return (
-    <>
-      <OnboardingGate />
-    <Routes>
-      <Route element={<Layout />}>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/folders/:id" element={<FolderPage />} />
-        <Route path="/tags/:id" element={<TagPage />} />
-        <Route path="/archive" element={<ArchivePage />} />
-        <Route path="/trash" element={<TrashPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-      </Route>
-      <Route path="/notes/:id" element={<NoteRedirect />} />
-    </Routes>
-    </>
+    <OnboardingGate>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/folders/:id" element={<FolderPage />} />
+          <Route path="/tags/:id" element={<TagPage />} />
+          <Route path="/archive" element={<ArchivePage />} />
+          <Route path="/trash" element={<TrashPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+        </Route>
+        <Route path="/notes/:id" element={<NoteRedirect />} />
+      </Routes>
+    </OnboardingGate>
   );
 }

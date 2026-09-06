@@ -7,6 +7,106 @@ difference to anyone using the app, it is not in here.
 
 ---
 
+## 🔖 v1.1.0 — "Abomey" · 2026-09-06
+
+Two things you could not do before. A note can hold a **table** — a few options against a
+few columns — with everything needed to shape one a click away from the cell you are
+already in. And **search knows about your folders and tags**, so a note you remember only
+as "the one in Budget" is findable by that, and you can narrow a search to one folder
+without leaving the search box.
+
+A new minor line, so a new name: Abomey, the royal capital of Dahomey, whose palace walls
+recorded the kingdom in bas-relief. A release about writing things down in a shape you can
+find again later.
+
+### 🆕 Added
+
+- **Tables, one slash away.** Type `/`, pick Table, and a three-by-three grid with a
+  header row lands as its own block with the cursor already in the first cell. There is
+  no size picker on purpose — deciding on dimensions before you have any data is exactly
+  the stop-and-think that menu exists to avoid. Add rows and columns as the thing takes
+  shape. It is deliberately not a spreadsheet: no formulas, no sorting, no merged cells.
+- **Rows and columns can be added, moved and removed.** Insert above, below, left or
+  right; move a row up or down and a column left or right; delete a row, a column, or the
+  whole table. An action with nowhere to go — moving the top row up — is greyed out rather
+  than quietly doing nothing when you press it.
+- **Deleting the last row deletes the table.** Ask for the only remaining row to go and
+  the table goes with it, instead of the app going silent and leaving you in a one-row
+  table with no way out. `⌘Z` brings it all back.
+- **The table actions come to you.** On a desktop a small handle appears in whichever cell
+  holds the cursor and opens the same menu, so reshaping a table does not mean looking
+  away to the toolbar for something you are doing right here. On a phone the toolbar's
+  table button scrolls itself into view the moment you tap into a table, rather than
+  waiting off the edge of a row you had no reason to scroll.
+- **A wide table scrolls inside itself,** and its header row stays put while the rows
+  slide underneath, so a long table never leaves you guessing which column you are
+  reading. The note itself never scrolls sideways — nothing else in the app does.
+- **Columns can be resized by dragging their edge,** wherever there is a mouse to do it
+  with. The edge thickens and turns terracotta under the pointer, and the cursor changes,
+  so the line tells you it can be dragged before you try. A table only grows wider than
+  the note when its columns genuinely cannot fit; when they can, it goes back to filling
+  the width by itself.
+- **Tables read correctly to a screen reader,** because header cells are marked as the
+  headers of their columns rather than merely looking like them — so a value is announced
+  with the column it belongs to. Every action in the menu is reachable from the keyboard
+  through the toolbar.
+- **A table stays a table on the note card,** shown as a miniature grid rather than as a
+  run-together line of words, and the words inside its cells are findable by search like
+  any other text in the note.
+- **Search knows about your folders and tags.** Typing a folder's name finds the notes
+  filed in it, and typing a tag's name finds the notes carrying it — even when that word
+  appears nowhere in the notes themselves. So a note you remember only as "the one in
+  Budget" is now findable by that, and a result that turned up for that reason says so on
+  its own row, rather than looking like a mistake. Accents are ignored on both sides:
+  typing "cafe" finds a folder called "Café", which matters now the app speaks French.
+- **Search can be narrowed to one folder or one tag.** A selector in the search bar reads
+  "All notes" until you point it somewhere; results then come only from there, and the
+  words you have already typed keep applying inside it. Choosing "All notes" again puts
+  you back, without losing what you typed. Each folder and tag in that list shows how many
+  notes it would give you for what you have typed, lined up in a column so you can read
+  down them at a glance — so picking where to look is a decision rather than a guess, and a
+  folder with nothing in it simply shows no number.
+
+### 🩹 Fixed
+
+- **The welcome no longer flashes the app at you before the guide arrives.** On a brand
+  new library the opening animation used to fade out onto a working interface for about
+  half a second before the welcome guide landed on top of it — long enough to start
+  reaching for something, and then have a dialog take the screen. The three beats are now
+  separate: the opening animation, then the guide by itself on the app's own paper, and
+  only once you have finished or skipped it does Lockpad itself fade up — on your full
+  note list, whichever page the browser happened to be pointed at. Replaying the guide
+  later from Settings is untouched: it still opens over your library, and leaves you on
+  the page you called it from.
+- **A note reference opens where you are already reading.** Clicking a linked note from
+  inside the text of a note used to throw it open in a new browser tab, while the panel
+  you were reading moved on to it as well: the same note in two places, and a stray tab
+  to close afterwards. It now does what the links in the note's header have always done.
+  The note you clicked slides into the panel you are in, and the note you came from is
+  waiting for you under Backlinks to slide you back.
+- **A pasted link opens one tab, not two.** The cards that stand in for a Figma file, a
+  GitHub repository or a YouTube video were being opened twice by one click, landing you
+  with a duplicate tab every time.
+
+### 🚧 Known limits
+
+- **No merged or split cells.** Every row has the same number of cells. A table pasted
+  from elsewhere that contains merged cells will render, but the actions in the menu are
+  not written for it.
+- **Resizing a column needs a mouse.** The drag is a mouse gesture and there is no touch
+  equivalent, so on a phone a table is read by scrolling it rather than by reshaping it.
+  Nothing is hidden that a finger could otherwise have used.
+- **The header row stays first.** It cannot be moved down and no row can be moved above
+  it, because a heading in the middle of the data describes nothing.
+- **A word in a note's title ranks no higher than the same word buried in its body.**
+  Search treats a note as one piece of text, so the note actually *called* "Budget" can
+  sit below one that merely mentions budgets in passing. Folder and tag matches are
+  nudged up the list; titles are not, yet.
+- **Folder and tag names need two characters before they are matched.** A single letter
+  would pull in most of your folders and drown the notes you were actually searching for.
+
+---
+
 ## 🔖 v1.0.0 — "Ganvié" · 2026-08-30
 
 The first release. Lockpad is a notes app that runs entirely on hardware you own: no

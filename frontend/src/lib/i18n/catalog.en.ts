@@ -129,6 +129,18 @@ export const en = {
   "search.empty": "No matches.",
   "search.prompt": "Type to search your notes.",
   "search.editedAt": "Edited {when}",
+  // Why a result is in the list when the words you typed are nowhere in it — see
+  // the note above SearchPalette's match-reason row.
+  "search.scope.title": "Search in",
+  "search.scope.all": "All notes",
+  "search.scope.filter": "Filter folders and tags…",
+  "search.scope.empty": "No folder or tag by that name.",
+  "search.promptInScope": "Type to search in {scope}.",
+  "search.matchedBy": "Matched by",
+  // Read only by a screen reader, so the chips that follow are not just two names
+  // in a row. The trailing space is deliberate: it separates this from the name.
+  "search.matchedFolderSr": "folder ",
+  "search.matchedTagSr": "tag ",
 
   "shortcut.openSearch": "Open search",
   "shortcut.newNote": "New note",
@@ -471,6 +483,19 @@ export const en = {
   "editor.codeBlock": "Code block",
   "editor.divider": "Divider",
   "editor.image": "Image",
+  "editor.table": "Table",
+  "editor.table.actions": "Table",
+  "editor.table.insertRowAbove": "Insert row above",
+  "editor.table.insertRowBelow": "Insert row below",
+  "editor.table.insertColumnLeft": "Insert column left",
+  "editor.table.insertColumnRight": "Insert column right",
+  "editor.table.moveRowUp": "Move row up",
+  "editor.table.moveRowDown": "Move row down",
+  "editor.table.moveColumnLeft": "Move column left",
+  "editor.table.moveColumnRight": "Move column right",
+  "editor.table.deleteRow": "Delete row",
+  "editor.table.deleteColumn": "Delete column",
+  "editor.table.deleteTable": "Delete table",
   "editor.link": "Link",
   "editor.link.edit": "Add or edit a link",
   "editor.link.placeholder": "Paste or type a link…",

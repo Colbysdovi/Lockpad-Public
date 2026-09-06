@@ -13,8 +13,8 @@
 #   REGISTRY  override the image source (default: ghcr.io/colbysdovi)
 #   TAG       which release to run      (default: latest)
 #
-# That `latest` default is a fallback, not a recommendation. `latest` is rebuilt on
-# every push to main, so an install without a TAG follows whatever was committed most
+# That `latest` default is a fallback, not a recommendation. `latest` is republished
+# with every release, so an install without a TAG follows whatever was released most
 # recently and can change on a day nobody chose. install.sh writes a pinned
 # TAG=<release> into .env for exactly that reason; leave it pinned and move it
 # deliberately. See DEPLOY.md §4.

@@ -1,5 +1,7 @@
 # 📓 Lockpad
 
+[![CI](https://github.com/Colbysdovi/Lockpad-Public/actions/workflows/publish-images.yml/badge.svg)](https://github.com/Colbysdovi/Lockpad-Public/actions/workflows/publish-images.yml)
+
 Self-hosted, privacy-first notes. Runs entirely on hardware you own, and makes
 **zero outbound network requests** — no analytics, no telemetry, no CDN fonts or
 scripts, no external APIs. Notes you lock are encrypted in your browser; the server
@@ -115,6 +117,9 @@ devices may connect with an ACL:
 ```
 
 A ready-made sidecar is included: see `docker-compose.tailscale.yml`.
+
+Already have a way to reach a server — a VPS, a Cloudflare Tunnel, a reverse proxy you
+run? [DEPLOY.md §10](DEPLOY.md) points Lockpad at it. Two `.env` settings, no overlay.
 
 ## 💾 Backups
 

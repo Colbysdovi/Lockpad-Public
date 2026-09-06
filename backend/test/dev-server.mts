@@ -63,6 +63,29 @@ const code = (language: string, text: string): J => ({ type: "codeBlock", attrs:
 // derived from the stored URL + provider id. `provider` must match an id in
 // frontend/src/lib/smartLinkProviders.ts, otherwise it renders as a generic link.
 const slink = (provider: string, url: string): J => ({ type: "smartLink", attrs: { url, provider } });
+// A table (docs/forge/note-tables-prd.md). The FIRST ROW is header cells, which is
+// what carries `scope="col"` and lets a screen reader read a value together with the
+// column it belongs to — the editor's own slash command builds tables the same way,
+// so a seeded table and a typed one are the same shape.
+//
+// `widths` is optional and per column: a number is the pixel width dragging a column
+// edge would have stored, and undefined leaves that column to size itself. Worth
+// seeding at least one, because a stored width is state the app can only otherwise
+// reach through a gesture, and it is exactly the state that used to strand a table
+// wider than its note.
+const table = (rows: (string | J)[][], widths: (number | undefined)[] = []): J => ({
+  type: "table",
+  content: rows.map((cells, r) => ({
+    type: "tableRow",
+    content: cells.map((cell, c) => ({
+      type: r === 0 ? "tableHeader" : "tableCell",
+      attrs: { colspan: 1, rowspan: 1, colwidth: widths[c] ? [widths[c]] : null },
+      // An empty cell is a paragraph with no content, never a text node holding "" —
+      // an empty text node is invalid in ProseMirror and the document would not load.
+      content: [typeof cell === "string" ? (cell ? p(cell) : p()) : cell],
+    })),
+  })),
+});
 const doc = (...content: J[]): J => ({ type: "doc", content });
 
 // ── Folders & tags ───────────────────────────────────────────────────────────
@@ -289,6 +312,66 @@ const notes: Seed[] = [
         [false, "Smoke-test import (Keep, Standard Notes, .md)"],
       ),
       p("Cut the tag only once the outbound-request check is green."),
+    ),
+  },
+  {
+    // The table note. Every shape a table can take is here on purpose, because each
+    // one exercises a different part of the feature and a seed of three identical
+    // three-by-three grids would rehearse none of them:
+    //   · the decision table FITS the note, and carries stored column widths — the
+    //     state a drag writes, which nothing else in the seed can produce;
+    //   · the matrix is seven columns wide, so it OVERFLOWS and scrolls sideways
+    //     inside its own box while the header row stays put;
+    //   · the field list is long enough to scroll VERTICALLY inside that same box,
+    //     which is the other half of the sticky header;
+    //   · one cell holds a full sentence, so the 22rem ceiling that stops one long
+    //     line dragging its column across the note actually gets hit.
+    title: "Sync for v2 — the comparison I keep redoing",
+    color: "indigo",
+    folderId: fEng.id,
+    tags: ["engineering", "architecture"],
+    pin: "all",
+    agoMin: 12 * MIN,
+    content: doc(
+      p("Third time I have worked through this, so it is going in a note. The question was never which sync design is best in the abstract. It is which one survives the promise on the landing page."),
+      h(2, "The three shapes"),
+      table(
+        [
+          ["Approach", "What it costs", "Verdict"],
+          ["Manual export / import", "A deliberate act, every time", "Ships today"],
+          ["Syncthing alongside", "Another daemon to run, and to explain in SETUP.md", "Likely"],
+          ["A relay of my own", "A server I would have to run, and a promise I would have to rewrite", "No"],
+        ],
+        [180, 300],
+      ),
+      p("The middle one keeps winning because it is the only one where Lockpad does nothing. Two folders, one already-solved problem, and no new outbound anything."),
+      h(2, "The detail the table above hides"),
+      table([
+        ["Option", "Setup", "Conflicts", "Mobile", "Offline", "LAN only", "New service"],
+        ["Manual", "None", "You resolve them", "Files app", "Always", "Yes", "No"],
+        ["Syncthing", "Per device", "Keeps both copies", "Good on Android, poor on iOS", "Always", "Optional", "Yes"],
+        ["Relay", "One-time", "Server decides", "Fine", "Queue and replay", "No", "Mine to run"],
+      ]),
+      p("The iOS row is what actually settles it. Half the reason to sync at all is the phone, and that is the half Syncthing is worst at."),
+      h(2, "Every field that would have to reconcile"),
+      p("Written out because \"just sync the notes\" hides about eleven separate decisions:"),
+      table([
+        ["Field", "Merge rule", "Risk if it is wrong"],
+        ["title", "Last write wins", "Cosmetic"],
+        ["content", "Last write wins, keep both", "The whole note, silently"],
+        ["color", "Last write wins", "Cosmetic"],
+        ["folderId", "Last write wins", "A note nobody finds again"],
+        ["tags", "Union", "Tag list grows forever"],
+        ["pinned", "Per scope, union", "Clutter at the top of a list"],
+        ["archived", "Last write wins", "A note reappears after being put away"],
+        ["deletedAt", "Deletion wins", "The genuinely bad one: a note deleted on the phone comes back from the laptop a week later, and there is no way to tell that from a note the user meant to keep"],
+        ["encryptedContent", "Never merge", "Corrupt ciphertext, unrecoverable"],
+        ["cryptoMeta", "Travels with the ciphertext", "Same, one step removed"],
+        ["createdAt", "Earliest wins", "Ordering only"],
+        ["updatedAt", "Latest wins", "Feeds every rule above it"],
+      ]),
+      p("Two of those cannot be got wrong twice: the locked pair, and the delete. Everything else is an annoyance."),
+      quote("If the answer needs a server, it is the wrong answer. Find the one where Lockpad does nothing."),
     ),
   },
   {

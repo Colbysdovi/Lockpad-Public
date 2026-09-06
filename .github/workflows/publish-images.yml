@@ -1,0 +1,172 @@
+# Build the Lockpad backend + frontend images and publish them to the GitHub
+# Container Registry (GHCR) so end users can PULL prebuilt images instead of
+# building from source. Multi-arch (amd64 + arm64) so it runs on NAS boxes,
+# Raspberry Pis, Apple Silicon, and normal x86 servers alike.
+#
+# Images published:
+#   ghcr.io/<owner>/lockpad-backend
+#   ghcr.io/<owner>/lockpad-frontend
+#
+# No secrets are needed — the automatically-provided GITHUB_TOKEN authenticates
+# to GHCR. After the first successful run, make the two packages public in the
+# repo's Packages settings so anonymous `docker pull` works.
+#
+# ── This file is published, and that is load-bearing, not incidental ─────────
+#
+# THIS FILE SHIPS TO Lockpad-Public via PUBLIC_PATHS. That is deliberate, and it
+# is the whole reason the job below carries a repository guard. Two repos, two
+# very different Actions-minutes situations:
+#
+#   - Lockpad-Private is on GitHub's metered free tier (2,000 min/month). It
+#     used to run this workflow on every push to main — every dev commit, not
+#     just releases — and six wedged runs in August 2026 alone burned 721
+#     job-minutes each before timing out, consuming 95% of a month's quota on
+#     builds nobody needed yet.
+#   - Lockpad-Public is a public repository, so its Actions minutes on
+#     GitHub-hosted runners are unmetered. The only thing that ever pushes to
+#     its `main` is `scripts/publish-public.sh --push`, which is a deliberate,
+#     human-confirmed act at release time — not a continuous stream of commits.
+#
+# So the build moved: `jobs.publish.if` below means this workflow now only ever
+# ACTUALLY RUNS in Lockpad-Public, triggered by that gated publish push. In
+# Lockpad-Private every trigger still fires (a commit to main, a tag push) but
+# the job shows as skipped and burns zero runner minutes — GitHub does not bill
+# for a job whose `if:` evaluates false. Same file in both trees; the behaviour
+# difference is which repository is asking.
+#
+# One consequence worth stating plainly: `release.sh` + `git push origin main
+# --follow-tags` no longer builds anything by itself. The images now come from
+# the SAME push that makes the release public — see docs/RELEASING.md, which
+# this comment should stay in sync with.
+name: Publish images
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+# One build at a time per ref. A rapid second push to main makes the first build
+# pointless the moment it starts, and an obsolete build still bills for every
+# minute it runs. Tags get their own group, so cutting a release never cancels
+# the main-branch build that is publishing `latest`.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Only Lockpad-Public ever actually builds. See the file header — this is
+    # the fix for the private repo's metered-quota incident, not a permissions
+    # check, so it compares the repository name rather than gating on an actor
+    # or a secret.
+    if: github.repository == 'Colbysdovi/Lockpad-Public'
+    # A healthy run finishes in 5-9 minutes, so 30 is generous. It is here because
+    # of what happens without it: six runs in August 2026 published their images
+    # normally and then wedged, idling until GitHub's own six-hour cap killed them.
+    # Those six cost ~721 job-minutes each and burned 95% of the month's quota,
+    # while the other eighteen runs together cost 243. The failure is invisible
+    # while it happens - the images are already pushed, so nothing looks broken.
+    # This turns a 721-minute silent wedge into a 60-minute loud failure.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            context: ./backend
+            # Each image bakes the release string under its own build-arg name:
+            # the backend reads a plain env var, the frontend needs the VITE_
+            # prefix for Vite to expose it to the bundle.
+            versionArg: APP_VERSION
+          - name: frontend
+            context: ./frontend
+            versionArg: VITE_APP_VERSION
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (for arm64 emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # One version string for the whole release, baked into BOTH images so the
+      # app can tell the user what it is running (Settings → About). A tag build
+      # is a real release and gets the tag verbatim; anything else is explicitly
+      # not a release and says so, because a build that claims a version number it
+      # doesn't have makes every bug report ambiguous.
+      - name: Derive the app version
+        id: ver
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            echo "value=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_REF_NAME}-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compute image name (lowercased owner)
+        id: img
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/lockpad-${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+
+      # ── Which run publishes `latest`, and why it is the TAG run ──────────────
+      #
+      # `latest` used to come from the default branch — `enable={{is_default_branch}}`
+      # — and on the private repo that was right: main moved on every dev commit, so
+      # "latest" honestly meant "the tip of main".
+      #
+      # It is wrong here. The public repo receives exactly one squashed commit per
+      # release, and publish-public.sh pushes that same commit as BOTH `main` and the
+      # `vX.Y.Z` tag. So the two runs compile identical source and differ only in what
+      # the ref makes this step emit — and the branch run stamps the app `main-<sha>`,
+      # which IS_RELEASE in frontend/src/lib/version.ts correctly refuses to treat as a
+      # release. Leaving `latest` on the branch run therefore published the release
+      # source under a build that calls itself "Development build" in Settings → About.
+      #
+      # So `latest` moves to the tag run, where the version stamp is the real one, and
+      # the two runs get distinct jobs rather than being duplicates:
+      #
+      #   main    → sha-<short>            the CI check the public README's badge reports
+      #   vX.Y.Z  → vX.Y.Z, latest         the release
+      #
+      # The branch trigger stays for that badge. It is a bare badge.svg with no
+      # ?branch= parameter, which GitHub scopes to the default branch, so a tag-only
+      # workflow would leave it reading "no status" forever.
+      - name: Derive tags & labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.img.outputs.name }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+            type=ref,event=tag
+            type=sha,format=short
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Frontend bakes the API base at build time; /api is same-origin via
+          # nginx, so this default is correct for every deployment.
+          build-args: |
+            VITE_API_BASE_URL=/api
+            ${{ matrix.versionArg }}=${{ steps.ver.outputs.value }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -72,6 +72,7 @@ export function OnboardingModal({
   open,
   onFinish,
   onSkip,
+  onBareCanvas,
 }: {
   open: boolean;
   /** Completed the last step. */
@@ -79,6 +80,13 @@ export function OnboardingModal({
   /** Left early. Marks the instance onboarded exactly as finishing does — the flag
    *  records that the tour was offered, not that it was enjoyed. */
   onSkip: () => void;
+  /** True on a genuine first run, where the gate has withheld the app and this
+   *  dialog is the only thing on screen. It drops the dimming scrim, because there
+   *  is nothing behind it to dim: what is back there is the page canvas and its
+   *  texture, which is what the user should be meeting first, not a brown wash of
+   *  it. The Settings replay leaves this off — that one really does open over a
+   *  live library, and the scrim is doing its normal job. */
+  onBareCanvas?: boolean;
 }) {
   const t = useT();
   // The step and the DIRECTION it was reached from, kept together so a single state
@@ -238,6 +246,10 @@ export function OnboardingModal({
         // with no close button is the trap this flow spends most of its code
         // avoiding. Mobile takes the same treatment as a bottom sheet.
         animClassName="onboarding-anim"
+        // See `onBareCanvas` above. `bg-transparent` alone is not enough — the base
+        // class also carries a blur, and blurring a canvas with nothing on it just
+        // softens the texture for no reason.
+        overlayClassName={onBareCanvas ? "bg-transparent backdrop-blur-none" : undefined}
         className="flex h-[86dvh] max-w-xl flex-col overflow-hidden sm:h-[min(640px,88dvh)]"
         // Every escape hatch Radix offers is routed to skip rather than to a bare
         // close, so the flag is always written. A dialog that vanishes without

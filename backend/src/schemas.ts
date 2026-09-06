@@ -118,9 +118,31 @@ export const createLinkSchema = z.object({
   targetNoteId: z.string().cuid(),
 });
 
-export const searchQuery = z.object({
+// `folderId` and `tagId` narrow a search to one folder or one tag. At most one at a
+// time — restricting by both at once is a plausible future extension, not something
+// v1 was asked for, and rejecting it outright is better than quietly honouring
+// whichever one the query happens to check first.
+//
+// Neither is validated as a cuid on purpose. An id that names nothing should return no
+// matches, not an error: search is typed into live and has to degrade quietly, and a
+// scope pointing at a folder that was just deleted is an ordinary event rather than a
+// malformed request.
+export const searchQuery = z
+  .object({
+    q: z.string().optional().default(""),
+    limit: z.coerce.number().int().min(1).max(50).optional().default(20),
+    folderId: z.string().optional(),
+    tagId: z.string().optional(),
+  })
+  .refine((v) => !(v.folderId && v.tagId), {
+    message: "folderId and tagId cannot both be set",
+  });
+
+// The counts behind the scope selector. Only a query — deliberately no folderId or
+// tagId, because the question it answers is "what would each folder give me", which a
+// scope would be answering in advance.
+export const searchFacetsQuery = z.object({
   q: z.string().optional().default(""),
-  limit: z.coerce.number().int().min(1).max(50).optional().default(20),
 });
 
 // Title lookup for note pickers. Separate from searchQuery on purpose — see the

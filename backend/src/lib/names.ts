@@ -36,3 +36,35 @@ export function collidesWith(name: string, existing: string[]): boolean {
   const target = normalizeName(name);
   return existing.some((other) => normalizeName(other) === target);
 }
+
+// ── A second, harder fold — for SEARCH, not for renaming ──────────────────────
+//
+// Search has to find a folder called "Café" when you type "cafe". The interface is
+// available in French, so accented folder and tag names are ordinary here, not an
+// edge case — and nobody types the accents when they are hunting for something.
+//
+// This is deliberately NOT a change to normalizeName above, and the distinction is
+// the whole point of having two functions:
+//
+//   • normalizeName decides whether two names are THE SAME NAME. Widening it to fold
+//     accents would make "Café" and "Cafe" collide, so the second one could no longer
+//     be created — a real restriction on what you are allowed to call things, which
+//     in French is not obviously right, since the accent is part of the word.
+//   • foldForSearch decides whether a name is worth SHOWING YOU. Folding accents there
+//     costs nothing: the worst case is one extra result you can see is not the one you
+//     meant.
+//
+// And normalizeName cannot be widened quietly in any case — its twin in the frontend
+// must fold identically (see the note above), so any change here is a change to what
+// the rename form warns about, on both sides of the wire. Search does not need that,
+// so search does not ask for it.
+//
+// The fold itself: whatever normalizeName already does, then NFD to split an accented
+// letter into its base letter plus a combining mark, then drop the marks. "é" is one
+// character until NFD makes it two, at which point the accent is a separate thing that
+// can be removed without touching the "e". No dependency, no Postgres `unaccent`
+// extension — which this app does not install and, for a few dozen short strings
+// compared in application code, does not need.
+export function foldForSearch(name: string): string {
+  return normalizeName(name).normalize("NFD").replace(/\p{M}/gu, "");
+}

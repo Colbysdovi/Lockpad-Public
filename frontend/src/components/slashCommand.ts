@@ -17,18 +17,12 @@
 import { Extension } from "@tiptap/core";
 import Suggestion from "@tiptap/suggestion";
 import type { Editor, Range } from "@tiptap/core";
-import { NODES, type IconName } from "@/components/icons/nodes";
+import { TextSelection } from "@tiptap/pm/state";
+// The inline-SVG builder lives with the geometry it reads, because the table
+// cell handle draws its own plain-DOM menu from the same icons.
+import { nodeIconSvg, type IconName } from "@/components/icons/nodes";
 import { tOutsideReact, type MessageKey } from "@/lib/i18n";
 
-// Build an inline SVG string from the shared lucide node geometry (same icons the
-// toolbar uses) so the plain-DOM menu can show an icon before each label without a
-// React render. Matches the toolbar's stroke look (24 viewBox, 2px round strokes).
-function iconSvg(name: IconName): string {
-  const inner = NODES[name]
-    .map(([tag, attrs]) => `<${tag} ${Object.entries(attrs).map(([k, v]) => `${k}="${v}"`).join(" ")}/>`)
-    .join("");
-  return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
-}
 
 /** One menu entry. `run` receives the editor and the RANGE covering the typed
  *  "/query", so each command can delete the trigger and apply itself in a single
@@ -41,6 +35,62 @@ interface Item {
   icon: IconName;
   group: string; // adjacent items sharing a group render without a divider between
   run: (editor: Editor, range: Range) => void;
+}
+
+// A new table starts at three columns by three rows, the first row being headers.
+// Small enough to be a glance rather than a spreadsheet, and there is no size picker
+// on purpose: choosing dimensions before you have any data is exactly the "stop and
+// think" step this menu exists to avoid. Rows and columns are added afterwards.
+const TABLE_COLS = 3;
+const TABLE_ROWS = 3;
+
+/** Insert a table as a TOP-LEVEL block, immediately after whatever block the caret
+ *  is in — never inside it.
+ *
+ *  TipTap's own `insertTable()` inserts at the caret. Typing "/" inside a list item
+ *  is an ordinary thing to do, and there `insertTable()` nests the whole table
+ *  inside the bullet — confirmed by trying it, not assumed. That is legal in the
+ *  schema and nothing is lost, but a table living inside a list bullet is not what
+ *  anyone means by "insert a table here".
+ *
+ *  (Inside a code block `insertTable()` does something worse still — it splits the
+ *  block in two and drops the table between the halves. That one is unreachable in
+ *  practice, because the suggestion plugin does not fire inside a code block, so
+ *  the menu never opens there. Handled by the same rule regardless.)
+ *
+ *  So the position is computed instead: `$from.after(1)` is the point just past the
+ *  top-level ancestor of the caret, whatever depth the caret is actually at. The
+ *  table lands there as a sibling, the block you were in is left whole, and the
+ *  caret moves into the first header cell so you can start typing straight away. */
+function insertTableAfterCurrentBlock(editor: Editor, range: Range): void {
+  editor
+    .chain()
+    .focus()
+    .deleteRange(range)
+    .command(({ tr, dispatch }) => {
+      if (!dispatch) return true;
+      const nodes = tr.doc.type.schema.nodes;
+      // Depth 0 means the selection is not inside any block at all; there is no
+      // top-level ancestor to insert after, so fall back to the caret itself.
+      const $from = tr.selection.$from;
+      const at = $from.depth > 0 ? $from.after(1) : tr.selection.to;
+      const rows = [];
+      for (let r = 0; r < TABLE_ROWS; r++) {
+        const cells = [];
+        for (let c = 0; c < TABLE_COLS; c++) {
+          // The first row is header cells, which is what carries scope="col" and
+          // makes the table readable to a screen reader (see Editor.tsx).
+          cells.push(nodes[r === 0 ? "tableHeader" : "tableCell"].createAndFill()!);
+        }
+        rows.push(nodes.tableRow.create(null, cells));
+      }
+      tr.insert(at, nodes.table.create(null, rows));
+      // Four positions in from the table's start: into the table, into the first
+      // row, into the first cell, into that cell's paragraph.
+      tr.setSelection(TextSelection.near(tr.doc.resolve(at + 4)));
+      return true;
+    })
+    .run();
 }
 
 // Grouped: headings · lists · blocks · inline formatting. Icons reuse the toolbar's
@@ -60,6 +110,7 @@ const ITEMS: Item[] = [
   // only by typing three dashes from memory.
   { titleKey: "editor.divider", icon: "Minus", group: "block", run: (e, r) => e.chain().focus().deleteRange(r).setHorizontalRule().run() },
   { titleKey: "editor.image", icon: "Image", group: "block", run: (e, r) => e.chain().focus().deleteRange(r).pickImage().run() },
+  { titleKey: "editor.table", icon: "Table", group: "block", run: (e, r) => insertTableAfterCurrentBlock(e, r) },
   // Strikethrough is a MARK, not a block, so choosing it here with nothing selected
   // simply arms it: the next thing typed comes out struck through. That matches how
   // the markdown shortcut (~~…~~) already behaved, and gives the action a home for
@@ -97,7 +148,7 @@ export const SlashCommand = Extension.create({
           "flex w-full items-center gap-2.5 rounded-sm px-2 py-1.5 text-left text-sm " +
           (i === selected ? "bg-accent" : "");
         b.innerHTML =
-          `<span class="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground">${iconSvg(item.icon)}</span>` +
+          `<span class="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground">${nodeIconSvg(item.icon)}</span>` +
           `<span>${tOutsideReact(item.titleKey)}</span>`;
         b.onmousedown = (ev) => {
           ev.preventDefault();

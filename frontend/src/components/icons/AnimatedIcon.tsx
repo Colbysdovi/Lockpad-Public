@@ -156,6 +156,7 @@ export const Settings2 = makeIcon("Settings2");
 export const SquareCode = makeIcon("SquareCode");
 export const Strikethrough = makeIcon("Strikethrough");
 export const Sun = makeIcon("Sun");
+export const Table = makeIcon("Table");
 export const Tag = makeIcon("Tag");
 export const Trash2 = makeIcon("Trash2");
 export const Undo2 = makeIcon("Undo2");

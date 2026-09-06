@@ -16,8 +16,11 @@ the list of things that actually go wrong.
 
 ## 📡 What is Tailscale, and do I need it?
 
-**Short answer:** you need it if you want your notes when you are away from home. If
-Lockpad will only ever be used on your own wifi, skip it.
+**Short answer:** you need it if you want your notes when you are away from home and do
+not already have a way to reach a server remotely. If Lockpad will only ever be used on
+your own wifi, skip it. And if you already run a VPS, a Cloudflare Tunnel or your own
+reverse proxy, skip this whole section — [DEPLOY.md §10](DEPLOY.md) points Lockpad at
+what you have instead of adding a second thing to run.
 
 Here is the problem it solves. Lockpad is running on a machine in your house. Your phone,
 when you are out, is not in your house. The traditional way to bridge that gap is *port

@@ -20,15 +20,15 @@ REPO_RAW="https://raw.githubusercontent.com/Colbysdovi/Lockpad-Public/main"
 # Which release this installer installs.
 #
 # This is the whole reason releases mean anything. The compose file resolves the
-# image as ${TAG:-latest}, and `latest` is rebuilt on EVERY push to main — so
-# without a pin, "install Lockpad" means "install whatever was committed most
-# recently", and an install done twenty minutes apart can give two people
-# different software under the same name. Writing TAG into .env makes an install
-# reproducible: it stays on this exact release until someone deliberately moves it.
+# image as ${TAG:-latest}, and `latest` MOVES: it is republished with every release,
+# so without a pin, "install Lockpad" means "install whatever the newest release
+# happens to be", and the same command run a month apart gives two people different
+# software under the same name. Writing TAG into .env makes an install reproducible:
+# it stays on this exact release until someone deliberately moves it.
 #
 # scripts/release.sh rewrites this line, so it cannot drift from the tag that was
 # actually cut. If you are editing it by hand, you are probably doing it wrong.
-LOCKPAD_VERSION="v1.0.0"
+LOCKPAD_VERSION="v1.1.0"
 COMPOSE_FILE="docker-compose.public.yml"
 TS_FILE="docker-compose.tailscale.yml"
 TS_SERVE="tailscale/serve.json"

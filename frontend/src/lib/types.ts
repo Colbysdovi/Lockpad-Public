@@ -95,13 +95,44 @@ export interface NotesPage {
   nextCursor: string | null;
 }
 
+// Narrowing a search to one folder or one tag. Null means the whole library, which
+// is what the palette's selector shows as "All".
+//
+// Only the id is kept, never the name. The name is looked up from the folder and tag
+// lists the app already holds, which means a rename is reflected immediately and — more
+// usefully — a scope pointing at something that has since been DELETED resolves to
+// nothing, which is the signal the palette uses to clear itself. Caching the name here
+// would turn both of those into stale text.
+export type SearchScope = { kind: "folder" | "tag"; id: string };
+
+// How many notes the current query would return, broken down by where they are filed.
+// Feeds the numbers beside each row of the scope selector, so choosing where to look is
+// a decision made with the answer already visible.
+//
+// `total` counts every match, including notes in no folder at all — so it is not the sum
+// of `folders`, and the "All notes" row needs it rather than a sum.
+export interface SearchFacets {
+  total: number;
+  folders: Array<{ id: string; count: number }>;
+  tags: Array<{ id: string; count: number }>;
+}
+
 // A search hit. Carries only enough to render a row in the palette — pick one and
 // the full note is fetched separately.
+//
+// The three `matched*` fields say WHY the row is here. A note can be found by its
+// folder's name or by one of its tags' names, with the typed words appearing nowhere
+// in the note itself — and a row like that, showing a snippet with nothing highlighted
+// in it, is otherwise indistinguishable from a mistake. `matchedContent: false` with a
+// folder or tag set is exactly that case.
 export interface SearchResult {
   id: string;
   title: string;
   snippet: string;
   updatedAt: string;
+  matchedContent: boolean;
+  matchedFolder: { id: string; name: string } | null;
+  matchedTags: Array<{ id: string; name: string }>;
 }
 
 // The other end of a note-to-note link, in either direction (links out, and

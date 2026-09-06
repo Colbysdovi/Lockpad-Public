@@ -34,7 +34,7 @@ import {
 import { api } from "./api";
 import { patchNoteInLists } from "./notesCache";
 import { markComposing, captureReflow } from "./noteFx";
-import type { Folder, LinkRef, Note, NoteCard, NotesPage, SearchResult, Tag } from "./types";
+import type { Folder, LinkRef, Note, NoteCard, NotesPage, SearchFacets, SearchResult, SearchScope, Tag } from "./types";
 import type { NoteColor } from "./noteColors";
 
 /** Which pile of notes a list is showing. Archive and trash are soft states on the
@@ -475,13 +475,43 @@ export function useLinkActions() {
   };
 }
 
-/** Full-text search across titles and note text. Disabled for an empty query so
- *  opening the palette does not fire a request for everything. */
-export function useSearch(q: string) {
+/** Search across titles, note text, and the names of the folder and tags a note is
+ *  filed under. `scope` narrows it to one folder or one tag; null searches everything.
+ *
+ *  Disabled for an empty query so opening the palette does not fire a request for
+ *  everything — and that stays true with a scope active. Choosing a folder before
+ *  typing anything shows a prompt, not that folder's contents: listing a folder's
+ *  notes is what opening that folder already does, and this is a search.
+ *
+ *  The scope is part of the CACHE KEY, not only of the URL. Without that, scoping to
+ *  one folder and then another would serve the first one's results from cache under a
+ *  key that no longer describes them. */
+export function useSearch(q: string, scope?: SearchScope | null) {
   return useQuery({
-    queryKey: ["search", q],
-    queryFn: () => api.get<{ results: SearchResult[] }>(`/notes/search${qs({ q })}`),
+    queryKey: ["search", q, scope?.kind ?? null, scope?.id ?? null],
+    queryFn: () =>
+      api.get<{ results: SearchResult[] }>(
+        `/notes/search${qs({
+          q,
+          folderId: scope?.kind === "folder" ? scope.id : undefined,
+          tagId: scope?.kind === "tag" ? scope.id : undefined,
+        })}`
+      ),
     enabled: q.trim().length > 0,
+  });
+}
+
+/** How many notes the query would return in each folder and under each tag.
+ *
+ *  Deliberately NOT folded into useSearch. These counts must ignore the active scope —
+ *  their whole job is to say what the OTHER folders would give you — and nothing needs
+ *  them until the selector is open, which is what `enabled` is for: no request is made
+ *  for a dropdown nobody has opened. */
+export function useSearchFacets(q: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["searchFacets", q],
+    queryFn: () => api.get<SearchFacets>(`/notes/search/facets${qs({ q })}`),
+    enabled: enabled && q.trim().length > 0,
   });
 }
 

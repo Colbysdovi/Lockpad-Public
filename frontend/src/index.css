@@ -626,6 +626,308 @@ html.lang-switching [role="dialog"] {
 .ProseMirror ul { list-style: disc; padding-left: 1.5rem; }
 .ProseMirror ol { list-style: decimal; padding-left: 1.5rem; }
 .ProseMirror blockquote { border-left: 3px solid var(--border); padding-left: 1rem; color: var(--muted-foreground); }
+/* TABLES. A small grid for structured jottings — a feature matrix, a few values
+   against a few options — deliberately not a spreadsheet. Borders are the app's own
+   hairline (var(--border)), so a table reads as part of the note rather than as a
+   pasted-in object, and every colour here is a palette token: both themes follow
+   automatically, and a colour never has to be written twice.
+
+   Note the ABSENCE of Tailwind opacity modifiers anywhere in this block. Every
+   palette token is a var() holding a hex, and Tailwind emits no CSS at all for
+   `bg-primary/15` — it fails silently, in review and at runtime. Where a tint is
+   wanted, color-mix() does it in plain CSS. */
+.ProseMirror table {
+  /* Named once here so every rule below paints the same line. */
+  --table-line: color-mix(in srgb, var(--border) 30%, var(--muted-foreground));
+  /* The same radius a code block gets in the editor, because a table is the same
+     kind of thing: a framed block object sitting in the prose. The card preview
+     overrides this one value and every corner below follows. */
+  --table-radius: 0.75rem;
+  /* SEPARATE, not `collapse`, and the corners are the whole reason. `border-radius`
+     is defined to have no effect on a table with collapsed borders — the shared
+     edges belong to the grid rather than to any cell, so there is nothing to round
+     and the browser simply ignores the declaration. Nothing warns you; the corners
+     just stay square.
+
+     Separating them costs one extra declaration (`border-spacing: 0`, or every cell
+     drifts 2px apart) and buys two things: corners that can be rounded, and borders
+     that belong to the cell that draws them — which is what lets the sticky header
+     keep its own outline (see the shadow rule below, which used to have to redraw
+     it). Each cell draws the line to its right and below; the first row adds a top
+     and the first column a left, and that completes the frame with nothing drawn
+     twice. */
+  border-collapse: separate;
+  border-spacing: 0;
+  /* Auto layout, deliberately, with bounds on the cells instead (below). `fixed`
+     was tried first and is wrong here: it pins the table to exactly `width: 100%`
+     and ignores the cells' own minimums, so eight columns silently squeezed into
+     the width of the note rather than overflowing — and a table that cannot
+     overflow has nothing to scroll. Measured: `scrollWidth === clientWidth` with
+     eight columns. */
+  width: max-content;
+  /* Never narrower than the note, so a two-column table still spans the body
+     instead of huddling at the left edge.
+     `!important` is not decoration here and should not be removed: with column
+     resizing switched on, TipTap's table view writes an INLINE `min-width` onto the
+     table element (cellMinWidth x column count — 75px for three columns), and an
+     inline style beats a stylesheet. Without this the rule silently loses and a
+     three-column table shrinks to 380px in a 691px note. Measured. */
+  min-width: 100% !important;
+  margin: 0.9em 0;
+}
+.ProseMirror :is(th, td) {
+  /* Deliberately NOT var(--border), which is the app's hairline for blockquotes,
+     inputs and card edges. Measured against a cell background that hairline lands at
+     1.38:1, and a table's gridlines are not decoration — they are what tells you
+     which value belongs to which column, so they fall under WCAG 1.4.11's 3:1
+     minimum for non-text contrast. Mixing the hairline toward the muted foreground
+     keeps it the same warm family while clearing that bar: measured 3.36:1 in light
+     and 3.22:1 in dark. Both themes come out of the same one declaration. */
+  border-right: 1px solid var(--table-line);
+  border-bottom: 1px solid var(--table-line);
+  padding: 0.35rem 0.6rem;
+  /* Text starts at the top of every cell, so a two-line cell beside a one-line cell
+     still reads as a row rather than as two things floating at different heights. */
+  vertical-align: top;
+  /* The pair of bounds that replaces a fixed layout. The floor is the width below
+     which a column stops being readable: past it the table grows wider than the
+     note rather than squeezing further, and that overflow is what scrolls. The
+     ceiling stops one long sentence from dragging its column across the screen and
+     flattening every other column — it wraps at this width instead. */
+  min-width: 7rem;
+  max-width: 22rem;
+  /* The selected-cell tint below is an overlay positioned against the cell. */
+  position: relative;
+}
+/* The two edges the per-cell right/bottom borders leave open, closing the frame. */
+.ProseMirror tr:first-child > :is(th, td) {
+  border-top: 1px solid var(--table-line);
+}
+.ProseMirror :is(th, td):first-child {
+  border-left: 1px solid var(--table-line);
+}
+/* The corners themselves. There is no table-level radius to set: the outer edge is
+   drawn by the four corner CELLS, so each one rounds its own outside corner and the
+   frame follows. A cell's background rounds with it, which is what keeps the header's
+   tint from squaring off the top two. */
+.ProseMirror tr:first-child > :is(th, td):first-child {
+  border-top-left-radius: var(--table-radius);
+}
+.ProseMirror tr:first-child > :is(th, td):last-child {
+  border-top-right-radius: var(--table-radius);
+}
+.ProseMirror tr:last-child > :is(th, td):first-child {
+  border-bottom-left-radius: var(--table-radius);
+}
+.ProseMirror tr:last-child > :is(th, td):last-child {
+  border-bottom-right-radius: var(--table-radius);
+}
+.ProseMirror th {
+  background: var(--muted);
+  font-weight: 600;
+  text-align: left;
+}
+/* A cell's paragraph is a block like any other, so in the note editor it would pick
+   up --prose-block-pad and make every row twice as tall as it needs to be. Inside a
+   cell the cell's own padding is the spacing. */
+.ProseMirror :is(th, td) > p {
+  margin: 0;
+  padding: 0;
+}
+/* Selecting across cells: prosemirror-tables marks each one `.selectedCell`. The tint
+   goes on an ::after overlay rather than on the cell's own background, so it sits over
+   the header's background instead of replacing it — a selected header cell still reads
+   as a header. */
+.ProseMirror .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  /* A corner cell is rounded, so a square tint would poke out past its own border.
+     `inherit` takes whichever radius that cell has, including none. */
+  border-radius: inherit;
+  pointer-events: none;
+}
+/* A TABLE inside a card preview. The card is a miniature of the note, so the table
+   stays a table — but at editor scale three columns of 7rem would overflow a ~13rem
+   card and show one and a half columns. The minimum is dropped and the type comes
+   down, so the whole grid fits and still reads as a grid. */
+.note-preview.ProseMirror table {
+  /* Same step down a code block takes between the editor and a card (0.75rem to
+     0.5rem). A 12px corner on a table this small reads as a pill rather than as a
+     rounded edge. One value; all four corner rules above follow it. */
+  --table-radius: 0.5rem;
+  margin: 0.35em 0;
+  font-size: 0.75rem;
+}
+.note-preview.ProseMirror :is(th, td) {
+  min-width: 0;
+  padding: 0.1rem 0.3rem;
+  line-height: 1.35;
+}
+/* A table SQUEEZES to fit the note before it ever scrolls, and only overflows once
+   its columns cannot get any narrower.
+
+   Without this the table is `width: max-content` with no ceiling, so any preferred
+   width wins outright — including a stale one. A column dragged to 301px keeps that
+   301px after the column it was sized alongside is deleted, and a three-column table
+   that used to fit sits at 714px in a 691px note with a scrollbar that never goes
+   away. Reproduced from six columns down to three: 938 → 826 → 714, against a 691px
+   note, every step overflowing. Nothing brings it back, and the last column cannot be
+   dragged narrower because `lastColumnResizable: false` gives it no handle. That is a
+   dead end, and it is what this rule removes.
+
+   A ceiling of 100% turns those column widths back into PREFERENCES. The browser
+   shrinks them proportionally to fit and only gives up when the cells' own
+   `min-width` floor (7rem each, above) cannot be met — which is exactly the rule the
+   cell comment already describes: squeeze until a column stops being readable, then
+   overflow, and let that overflow scroll. Measured on a table whose first two columns
+   store 301px: at three to six columns it fits the note at 691px, and at seven the
+   floor needs 784px, so it overflows and the wrapper scrolls again.
+
+   The stored widths are NOT thrown away — they stay in the document and are honoured
+   again the moment there is room, so widening the window or deleting a column brings
+   the intended proportions straight back.
+
+   One consequence worth knowing: a column can no longer be dragged wide enough to
+   push the table past the note on its own; the other columns give way instead. Making
+   a table scroll is now the column COUNT's job, or long unbreakable content's, which
+   is the same stance `min-width: 100%` above already takes.
+
+   Scoped to `.note-view`, like the scrolling box itself: a card preview is a still
+   miniature with its own rules and is deliberately untouched. */
+.note-view .ProseMirror table {
+  max-width: 100%;
+}
+/* The table's own scrolling box (see components/tableNode.ts for the element).
+   A wide table scrolls sideways in here, and the note panel — the app's only
+   vertical scroll region, and horizontal nowhere — never learns about it. */
+.note-view .ProseMirror .tableWrapper {
+  overflow: auto;
+  /* A bounded height is what makes the header stick, and it is not optional.
+     `overflow-x: auto` alone cannot work: the computed overflow-y becomes `auto`
+     with it, which makes THIS element the sticky positioning ancestor rather than
+     the note panel. The header then has nothing to stick to inside a box the exact
+     height of its own content, and scrolls away with no error to say why. Measured
+     before and after: without a bounded height the header ran 300px past the top of
+     the panel; with one it holds at offset 0 on both axes. */
+  max-height: min(60vh, 26rem);
+  /* Table margins move out here, onto the box that is now the block in the flow. */
+  margin: 0.9em 0;
+}
+.note-view .ProseMirror .tableWrapper > table {
+  margin: 0;
+}
+/* The header row holds its place while the rest of the table scrolls under it, so a
+   long table never leaves you guessing which column you are reading. */
+.note-view .ProseMirror .tableWrapper th {
+  position: sticky;
+  top: 0;
+  /* Above the body cells, which would otherwise scroll over the header. */
+  z-index: 1;
+}
+/* This rule used to carry two inset shadows redrawing the header's top and bottom
+   lines, because a COLLAPSED border belongs to the table's grid rather than to any
+   cell and so did not travel with the sticky header — it lost its outline the moment
+   it detached. Separating the borders for the corners fixed that as a side effect:
+   the lines are now the header cell's own borders and move with it. What is left is
+   the part that was never a workaround. */
+.note-view .ProseMirror .tableWrapper th {
+  /* A shallow drop shadow so the header reads as a LAYER the rows pass beneath,
+     rather than as a row that happens to be repeated. That layering is the cue that
+     survives when colour does not: the weight of the heading text and this edge both
+     say "header" without depending on the tinted background being distinguishable
+     from the cell background (they are only 1.15:1 apart). */
+  box-shadow: 0 2px 3px -2px color-mix(in srgb, var(--foreground) 28%, transparent);
+}
+/* The column-resize handle: a hairline that lights up under the pointer, sitting on
+   the right edge of each cell. Positioned INSIDE the cell so it never overlaps the
+   wrapper's scrollbar, and given a low z-index so the sticky header still passes over
+   it rather than under. */
+/* Hovering a column edge turns that gridline terracotta and thickens it — 3px against
+   the 1px hairline every other boundary keeps. The change of both weight and colour is
+   the signal that this particular line is not just a border; the cursor (below) says
+   what you can do with it.
+
+   It sits fully INSIDE the cell (`right: 0`, not a negative offset straddling the
+   boundary) so none of it can be painted over by the neighbouring cell. That is not
+   theoretical: the sticky header gives every header cell a z-index, which makes each
+   cell its own stacking context, so anything overflowing a cell's right edge is covered
+   by the next cell and no z-index from within can lift it out. Staying inside the cell
+   sidesteps the whole problem. */
+.note-view .ProseMirror .column-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 3px;
+  background: var(--primary);
+  /* The resize is driven by the plugin's own hit-testing on the cell edge, so this is
+     purely a marker; taking the pointer would stop the drag it is advertising. */
+  pointer-events: none;
+}
+/* The pointer says what the thickened line is for. prosemirror-tables adds
+   `resize-cursor` ON the editor element itself while the pointer is over a column
+   edge, not on anything inside it — so this is `.ProseMirror.resize-cursor`, with no
+   space. Written as a descendant selector it matches nothing at all and the pointer
+   stays an arrow over a draggable edge, which is exactly what happened until it was
+   measured rather than read. */
+.note-view .ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+/* On a TOUCH device the handle is hidden, because it cannot be worked by a finger:
+   the resize plugin listens only for mouse events. The columns are still resizable on
+   any device with a pointer, and a table remains fully readable on touch by scrolling
+   it — what is removed is a control that would never respond. */
+@media (pointer: coarse) {
+  .note-view .ProseMirror .column-resize-handle {
+    display: none;
+  }
+}
+/* On a TOUCH device the scrollbar is an OVERLAY: nothing reserves space for it, so
+   the system paints it across the last few pixels of the scrolling box — and on a
+   table those pixels are the bottom row, its text and its gridline, with the bar lying
+   on top of them. Measured on a 375px viewport: offsetHeight === clientHeight
+   (167 === 167), which is the overlay in one number. The bar takes no layout space at
+   all, so it has nowhere to be except over the table.
+
+   Two things were tried before this and did not work, both worth knowing about:
+
+   - `scrollbar-gutter: stable` has no effect on an overlay scrollbar. By definition it
+     reserves classic-scrollbar space, and there is none to reserve.
+   - Styling `::-webkit-scrollbar` normally converts an overlay bar into a real one that
+     claims its own strip. It does not on a touch device: Blink uses a separate mobile
+     overlay theme there that ignores custom scrollbar rules. Probed directly — a test
+     scroller with `::-webkit-scrollbar { height: 9px }` still measured
+     offsetHeight - clientHeight === 0.
+
+   So the space has to be made in the only place that is actually ours: the padding. The
+   bar keeps painting at the bottom of the scrolling box, and the box now ends 10px
+   below the table instead of flush with it. About 6px of that is the bar's own
+   footprint (a ~4px thumb sitting ~2px off the edge), leaving roughly the 4px of clear
+   space this exists to produce. "About", because a browser does not expose its overlay
+   bar's thickness to either CSS or script — iOS Safari's indicator is a little thicker
+   than Chrome's and lands a pixel tighter. What holds on every one of them is the part
+   that matters: the bar is under the table rather than on it.
+
+   The cost is that the padding is there whether or not a given table overflows, since
+   CSS cannot ask. That is 10px of quiet space beneath a table that fits, which is a
+   fair trade for never painting a scrollbar through the last row of one that doesn't. */
+@media (pointer: coarse) {
+  .note-view .ProseMirror .tableWrapper {
+    /* Below for the horizontal bar, and the same again on the right for the vertical
+       one that appears once a table is taller than the box. */
+    padding-bottom: 10px;
+    padding-right: 10px;
+  }
+}
+/* A card preview is a still miniature: it never scrolls, and a max-height there would
+   just clip the table mid-row. */
+.note-preview.ProseMirror .tableWrapper {
+  overflow: hidden;
+  max-height: none;
+  margin: 0.35em 0;
+}
 /* Code blocks (PRD 8): a self-contained DARK surface in BOTH app themes (code
    conventionally stays dark), with highlight.js token colours from lowlight
    (bundled locally — no CDN). Radius/padding follow the app's spacing system. */
@@ -2081,6 +2383,98 @@ body.lockpad-dragging .lockpad-drag-handle {
 .lockpad-block-menu-item:focus-visible {
   background: var(--accent);
   outline: none;
+}
+
+/* The table cell handle (tableCellHandle.ts): a small chip beside the cell holding
+   the selection, and its menu. Fixed-positioned on <body> like the block grip above,
+   for the same reason — nothing it does may reflow the cell it points at.
+
+   It borrows the grip's look (a muted glyph on a soft accent chip, brightening under
+   the pointer) so the editor's two floating handles read as one family rather than as
+   two unrelated controls that happen to float. */
+.lockpad-table-cell-handle {
+  position: fixed;
+  z-index: 50;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px; /* keep in sync with SIZE in tableCellHandle.ts */
+  height: 20px;
+  border-radius: 6px;
+  color: var(--muted-foreground);
+  /* Fully opaque, unlike the block grip's tinted chip: this one sits INSIDE the cell
+     and may land on the tail of a line, so whatever it covers has to read as passing
+     underneath it rather than showing through it. The ring and shadow are what say
+     "above", and they are why this can be in the cell at all. */
+  background: var(--accent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent),
+    0 1px 4px rgb(var(--shadow-color) / 0.18);
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.lockpad-table-cell-handle:hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--accent) 80%, var(--foreground) 8%);
+}
+/* The handle's menu. Same surface as the block grip's menu next to it; kept as its
+   own class rather than borrowing that one, so neither can be restyled for its own
+   reasons and silently move the other. */
+.lockpad-table-menu {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  min-width: 12rem;
+  padding: 0.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--card);
+  /* --shadow-color, not a hardcoded black: it is a warm brown in the light theme and a
+     near-black in the dark one, so an elevated surface reads as part of the palette
+     rather than as a generic drop shadow. The handle two rules above already uses it,
+     and a shadow written as plain black would not follow if the system is ever retuned. */
+  box-shadow: 0 8px 24px rgb(var(--shadow-color) / 0.18);
+}
+.lockpad-table-menu-item {
+  display: flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0 0.75rem;
+  border-radius: 0.5rem;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--card-foreground);
+  text-align: left;
+  cursor: pointer;
+}
+.lockpad-table-menu-item:hover:not(:disabled),
+.lockpad-table-menu-item:focus-visible {
+  background: var(--accent);
+  outline: none;
+}
+/* A move that has nowhere to go — a row already at the top, a column already at the
+   left edge. Greyed and inert rather than absent, so the menu keeps the same shape
+   wherever the caret is and the boundary is legible instead of surprising. */
+.lockpad-table-menu-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+/* Red, like every other destructive row in the app. The labels already begin with
+   "Delete", so the colour reinforces and never carries the meaning on its own. */
+.lockpad-table-menu-item.is-danger {
+  color: var(--destructive);
+}
+/* A divider element rather than a border on the first destructive row: the rows are
+   rounded, and a border follows its own element's radius, which curls the line up at
+   both ends. The toolbar's table menu learned this the same way. */
+.lockpad-table-menu-sep {
+  margin: 0.25rem 0;
+  height: 1px;
+  background: var(--border);
 }
 
 /* ─── Mobile / touch refinements ──────────────────────────────────────────────

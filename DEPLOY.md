@@ -23,7 +23,7 @@ Edit `.env`:
 
 | Variable            | What to set it to                                                              |
 | ------------------- | ------------------------------------------------------------------------------ |
-| `TAG`               | The release to run, e.g. `v1.0.0`. Only used by `docker-compose.public.yml` (prebuilt images). Unset means `latest`, which is rebuilt on every push to `main` — pin it unless you want the app to move on its own. |
+| `TAG`               | The release to run, e.g. `v1.0.0`. Only used by `docker-compose.public.yml` (prebuilt images). Unset means `latest`, which is republished with every release — pin it unless you want the app to move on its own. |
 | `POSTGRES_PASSWORD` | A long random string (`openssl rand -hex 32`).                                 |
 | `DATABASE_URL`      | Use the same password: `postgresql://lockpad:<PW>@postgres:5432/lockpad?schema=public` |
 | `CORS_ORIGINS`      | Your MagicDNS URL, e.g. `https://lockpad.<your-tailnet>.ts.net`                 |
@@ -429,5 +429,103 @@ you.
 Certificates from `mkcert` are dated years out, so this is not a renewal treadmill,
 but it is not forever either: note the expiry somewhere you will see it, and reissue
 with the same command when the day comes.
+
+## 📡 10. Your own reverse proxy or VPS (no Tailscale)
+
+§3 and §9 both assume Lockpad has to solve reaching your notes. If you already run a
+VPS, a Cloudflare Tunnel, Caddy, nginx with certbot, Traefik — anything already
+terminating TLS for the other things you host — then that problem is solved and Lockpad
+should stay out of the way. Nothing below is Lockpad-specific plumbing; it is the same
+handful of settings any self-hosted app behind a proxy needs.
+
+One thing this path cannot say that §3 and §9 can: **the exposure is yours.** The
+certificate, the firewall and whatever sits in front are yours to get right, exactly as
+they already are for everything else on that server.
+
+### 🧰 What you need
+
+- A domain or subdomain resolving to the server.
+- Something in front of it terminating TLS. Lockpad does not care which.
+
+### 🔌 Where the proxy should reach it
+
+**If the proxy runs on the same machine — the usual case — change nothing.** The
+frontend is already published on `127.0.0.1:5173` (`FRONTEND_PORT`), and loopback is
+exactly what the proxy should point at:
+
+```
+reverse_proxy 127.0.0.1:5173         # Caddy
+proxy_pass http://127.0.0.1:5173;    # nginx
+```
+
+Leave `FRONTEND_BIND` alone, and **do not set `FRONTEND_BIND=` on a public server.**
+Empty binds the port to every interface, and on a VPS every interface includes the
+public one — Lockpad would then answer at `http://<your-server-ip>:5173` in plain text,
+beside the HTTPS address you set up precisely to avoid that, with the secure context
+gone and the session cookie travelling in the clear. That the port is written down
+nowhere is not the same as it being closed.
+
+**If the proxy runs on another host,** name the interface it arrives on rather than
+opening all of them — `FRONTEND_BIND=10.0.0.5:`, the trailing colon included — and let
+the firewall admit that source only.
+
+**If the proxy is a container on this same Docker host,** the tidiest answer is neither:
+attach it to Lockpad's network and proxy to `frontend:80`, so nothing is published to
+the host at all.
+
+### 🔌 The two settings in `.env`
+
+```
+COOKIE_SECURE=true
+CORS_ORIGINS=https://notes.yourdomain.com
+```
+
+`COOKIE_SECURE=true` marks the session cookie secure, so a browser only ever sends it
+over HTTPS. It is right here **because the domain is the only way you reach Lockpad** —
+that is precisely the condition §3 attaches to it. Keep a plain-`http://` LAN address
+alongside this and you must leave it `false`, or turning it on logs you out of that one.
+
+`CORS_ORIGINS` is belt-and-braces rather than required. nginx inside the frontend
+container serves the page and proxies `/api` on the same origin, so the browser never
+makes a cross-origin request — the same reasoning as §3 and §9. Listing the address
+costs nothing, and removes one baffling failure if that ever stops being true.
+
+No new overlay and no new command: run whichever base file your install already uses,
+exactly as before.
+
+### 🔒 The part that needs the TLS to be real
+
+Per-note locking runs on WebCrypto, which browsers expose only in a **secure context**.
+This is the constraint §9 solves with `mkcert` on a LAN; here your proxy is what
+provides it. If it is not genuinely terminating valid TLS — a self-signed certificate no
+browser has been told to trust, a redirect you meant to enable and did not — the lock
+button refuses to run, correctly but permanently, and nothing on screen explains why.
+
+Terminating TLS at the proxy and forwarding plain HTTP to the frontend is fine and
+normal. The browser decides the secure context from the address in the address bar, not
+from the last hop inside your server.
+
+### ✅ Verify
+
+```bash
+curl -sS -o /dev/null -w 'tls-verify=%{ssl_verify_result} http=%{http_code}\n' \
+  https://notes.yourdomain.com/api/health
+curl -sS https://notes.yourdomain.com/api/health
+```
+
+`tls-verify=0 http=200`, then `{"status":"ok","version":"…"}`.
+
+Now check the port you did **not** mean to publish, from any machine that is not the
+server:
+
+```bash
+curl -sS --max-time 5 http://<your-server-ip>:5173/ \
+  && echo 'REACHABLE — see FRONTEND_BIND above'
+```
+
+Connection refused, or a timeout, is the answer you want.
+
+Finally, log in and lock a note. That is the only real proof the secure context is in
+place, and it is the one thing the health endpoint cannot tell you.
 
 [mkcert]: https://github.com/FiloSottile/mkcert
