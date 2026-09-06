@@ -28,11 +28,11 @@
 #     human-confirmed act at release time — not a continuous stream of commits.
 #
 # So the build moved: `jobs.publish.if` below means this workflow now only ever
-# ACTUALLY RUNS in Lockpad-Public, triggered by that gated publish push. In
-# Lockpad-Private every trigger still fires (a commit to main, a tag push) but
-# the job shows as skipped and burns zero runner minutes — GitHub does not bill
-# for a job whose `if:` evaluates false. Same file in both trees; the behaviour
-# difference is which repository is asking.
+# ACTUALLY RUNS in Lockpad-Public, triggered by the vX.Y.Z tag that gated publish
+# push carries. In Lockpad-Private the tag trigger still fires but the job shows
+# as skipped and burns zero runner minutes — GitHub does not bill for a job whose
+# `if:` evaluates false. Same file in both trees; the behaviour difference is
+# which repository is asking.
 #
 # One consequence worth stating plainly: `release.sh` + `git push origin main
 # --follow-tags` no longer builds anything by itself. The images now come from
@@ -40,9 +40,25 @@
 # this comment should stay in sync with.
 name: Publish images
 
+# ── Tags only. There is deliberately no branch trigger ───────────────────────
+#
+# A `push: branches: [main]` trigger was here, and it built the release source a
+# SECOND time. That was not an accident of configuration: publish-public.sh pushes
+# one squashed commit as both `main` and the vX.Y.Z tag, so the two runs compiled
+# identical code and differed only in what they tagged. The branch run's only
+# product that the tag run does not also produce is `sha-<short>` — and the only
+# thing that consumed it was a CI badge on the public README.
+#
+# Judged and dropped: a duplicate multi-arch build on every release, doubling the
+# time before images exist and the number of runs that can fail, is a real cost,
+# and a green badge is not worth paying it. The badge came off the README in the
+# same commit rather than being left to rot at "no status".
+#
+# Consequence to keep in mind: nothing here validates a commit before a release
+# is cut. The build now runs for the first time at tag time, so a broken build is
+# discovered during a release rather than before one.
 on:
   push:
-    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -50,10 +66,10 @@ permissions:
   contents: read
   packages: write
 
-# One build at a time per ref. A rapid second push to main makes the first build
-# pointless the moment it starts, and an obsolete build still bills for every
-# minute it runs. Tags get their own group, so cutting a release never cancels
-# the main-branch build that is publishing `latest`.
+# One build at a time per ref, so a re-cut or re-pushed tag supersedes a build that
+# is already pointless rather than racing it — an obsolete build still occupies a
+# runner for every minute it takes. Keyed on the ref, so two different releases
+# tagged close together do not cancel each other.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -136,15 +152,11 @@ jobs:
       # release. Leaving `latest` on the branch run therefore published the release
       # source under a build that calls itself "Development build" in Settings → About.
       #
-      # So `latest` moves to the tag run, where the version stamp is the real one, and
-      # the two runs get distinct jobs rather than being duplicates:
-      #
-      #   main    → sha-<short>            the CI check the public README's badge reports
-      #   vX.Y.Z  → vX.Y.Z, latest         the release
-      #
-      # The branch trigger stays for that badge. It is a bare badge.svg with no
-      # ?branch= parameter, which GitHub scopes to the default branch, so a tag-only
-      # workflow would leave it reading "no status" forever.
+      # So `latest` is published by the tag build, where the version stamp is the real
+      # one. One run per release now produces everything: vX.Y.Z, latest and
+      # sha-<short>. The `enable=` guard stays rather than being simplified to a bare
+      # `type=raw,value=latest`, because workflow_dispatch can still be aimed at a
+      # branch, and a manual run off a branch must not move `latest`.
       - name: Derive tags & labels
         id: meta
         uses: docker/metadata-action@v5

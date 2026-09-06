@@ -1,7 +1,5 @@
 # 📓 Lockpad
 
-[![CI](https://github.com/Colbysdovi/Lockpad-Public/actions/workflows/publish-images.yml/badge.svg)](https://github.com/Colbysdovi/Lockpad-Public/actions/workflows/publish-images.yml)
-
 Self-hosted, privacy-first notes. Runs entirely on hardware you own, and makes
 **zero outbound network requests** — no analytics, no telemetry, no CDN fonts or
 scripts, no external APIs. Notes you lock are encrypted in your browser; the server
@@ -9,17 +7,25 @@ only ever stores ciphertext for them.
 
 ![Lockpad's note list: a grid of note cards with folder and tag chips, a pinned section at the top, and a composer docked at the bottom of the screen.](docs/screenshots/note-list-light.png)
 
-▶ **[Watch the 50-second demo](docs/lockpad-demo.mp4)** — writing a note, filing it, and
-locking one.
+<!-- THE DEMO VIDEO IS NOT LINKED HERE, AND THAT IS ON PURPOSE. Please read this
+     before adding a link back.
 
-<!-- The link above opens GitHub's own video player, which is what a repo-relative video
-     path does when this README is rendered on github.com. For an autoplaying player
-     embedded directly in the page, GitHub only honours its own attachment CDN: drag
-     docs/lockpad-demo.mp4 into the v1.0.0 Release (or any issue) to get a
-     github.com/user-attachments/assets/… URL, then paste that URL on a line by itself
-     here. A repo-relative path in a <video> tag will not render. -->
+     A repo-relative link to docs/lockpad-demo.mp4 does NOT open GitHub's video
+     player. That was assumed here for a while and is wrong: the file is 7.71 MB, past
+     the size limit for rendering a blob, so github.com answers "Sorry about that, but
+     we can't show files that are this big right now." The raw URL is no better — it is
+     served as application/octet-stream, so it downloads 8 MB instead of playing.
 
-**Current release: v1.0.0 "Ganvié".** What is in it, and what changed since:
+     A dead link on the front page of a project selling trustworthiness costs more than
+     a missing demo, so there is no link until there is a working one.
+
+     To restore it properly: drag docs/lockpad-demo.mp4 into a GitHub issue or a Release
+     description box in the web UI. GitHub uploads it to its attachment CDN and gives
+     back a github.com/user-attachments/assets/… URL. Paste THAT on a line by itself
+     here and it renders as an inline player. It has to be done through the web UI —
+     there is no API for it, and no repo path can substitute. -->
+
+**Current release: v1.1.1 "Abomey".** What is in it, and what changed since:
 [CHANGELOG.md](CHANGELOG.md).
 
 ## 📦 Install

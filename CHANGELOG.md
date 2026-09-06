@@ -7,6 +7,30 @@ difference to anyone using the app, it is not in here.
 
 ---
 
+## 🔖 v1.1.1 — "Abomey" · 2026-09-06
+
+**Nothing in the app changed.** Same code as v1.1.0, rebuilt — if you are already
+running v1.1.0 there is no reason to update, and if you are installing fresh you get
+exactly what v1.1.0 was. This release exists to correct the project's own front page,
+which was saying three untrue things at once.
+
+### 🩹 Fixed
+
+- **The README said you were on v1.0.0.** That line was written by hand and nothing
+  ever updated it, so it went stale the moment v1.1.0 shipped. It is now rewritten by
+  the release script from the changelog entry, which means it cannot drift again
+  without the release failing outright.
+- **The "watch the demo" link led to an error.** GitHub will not render a video that
+  size — it answers "we can't show files that are this big right now" — and the raw
+  URL downloads 8 MB instead of playing. The link is gone until there is one that
+  works; the screenshot above it was already doing the same job.
+- **The build badge said "failing" when nothing had failed.** It was reporting a second,
+  redundant build of the same release commit, which existed only to give the badge
+  something to report and was killed by its own timeout. Both the badge and the
+  duplicate build are gone. A release now builds once.
+
+---
+
 ## 🔖 v1.1.0 — "Abomey" · 2026-09-06
 
 Two things you could not do before. A note can hold a **table** — a few options against a
