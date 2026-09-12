@@ -171,7 +171,7 @@ test("exposure warning fires only for LAN-reachable AND no password", async () =
 // ── Build version ─────────────────────────────────────────────────────────────
 // Health reports which build is running. It is the one endpoint reachable with no
 // session and no rate limit, which makes it the place a user (or a support reply)
-// can always ask "what is actually deployed here?" — see docs/RELEASING.md.
+// can always ask "what is actually deployed here?"
 test("health reports the build version", async () => {
   const res = await app.inject({ method: "GET", url: "/api/health" });
   assert.equal(res.statusCode, 200);

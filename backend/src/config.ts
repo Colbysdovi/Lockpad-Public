@@ -49,7 +49,7 @@ export const config = {
   // The release this server was BUILT from — baked into the image by the
   // Dockerfile, never read from the database, so it cannot go stale relative to
   // the code actually executing. "dev" means a build from source or an untagged
-  // commit; see docs/RELEASING.md.
+  // commit, where nothing passed a version in at build time.
   version: process.env.APP_VERSION?.trim() || "dev",
   port: Number(process.env.BACKEND_PORT ?? 4000),
   host: process.env.BACKEND_HOST ?? "0.0.0.0",

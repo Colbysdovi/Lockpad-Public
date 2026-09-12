@@ -7,6 +7,22 @@ difference to anyone using the app, it is not in here.
 
 ---
 
+## 🔖 v1.1.3 — "Abomey" · 2026-09-12
+
+A patch release for one bug: a checklist added while writing a note lost its styling.
+
+### 🩹 Fixed
+
+- **A checklist you add while writing looks like a checklist again.** Since v1.1.0, a
+  checklist added to a note — from the toolbar, the `/` menu, or by pasting — came out
+  unstyled until the note was reopened: each item showed a bullet and a tiny checkbox,
+  and the text you typed landed on the line below the box instead of beside it. A new
+  checklist now looks right straight away, with the larger box, the bigger box and tap
+  target on a phone, and its text next to it. The notes themselves were never affected,
+  so existing checklists need no repair.
+
+---
+
 ## 🔖 v1.1.2 — "Abomey" · 2026-09-12
 
 Everyday work with a batch of notes gets less repetitive, and the folder colour picker
@@ -346,7 +362,7 @@ what the app does.
         words inside long notes" — not "switched search to a tsvector column".
      2. Write it before pushing the tag. The GitHub Release body is copied from
         here, and that page is where Settings → About sends every user, so an
-        empty one makes the update button pointless. See docs/RELEASING.md.
+        empty one makes the update button pointless.
 
      The name comes from the pool of Benin towns in docs/release-names.md — pick
      one, then move it to that file's Used table. A patch release keeps its line's

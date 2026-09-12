@@ -36,8 +36,8 @@
 #
 # One consequence worth stating plainly: `release.sh` + `git push origin main
 # --follow-tags` no longer builds anything by itself. The images now come from
-# the SAME push that makes the release public — see docs/RELEASING.md, which
-# this comment should stay in sync with.
+# the SAME push that makes the release public: pushing the vX.Y.Z tag to this
+# repository is what starts the build.
 name: Publish images
 
 # ── Tags only. There is deliberately no branch trigger ───────────────────────

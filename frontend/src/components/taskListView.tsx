@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import TaskList, { type TaskListOptions } from "@tiptap/extension-task-list";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { ChevronRight } from "@/components/icons";
@@ -63,15 +63,9 @@ function TaskListView({ editor, node, getPos, extension }: NodeViewProps) {
 
   const pos = typeof getPos === "function" ? getPos() : undefined;
 
-  // TipTap builds the `ul` itself, so it carries none of the attributes the plain
-  // extension's `renderHTML` would give it. Stamping the marker back on means one
-  // set of CSS rules covers both this and the preview's plain checklist, rather
-  // than every rule needing a second selector that could later be forgotten.
-  useEffect(() => {
-    if (pos == null) return;
-    const dom = editor.view.nodeDOM(pos);
-    if (dom instanceof HTMLElement) dom.querySelector("ul")?.setAttribute("data-type", "taskList");
-  }, [editor, pos]);
+  // The `ul`'s `data-type` marker is NOT set here. It is stamped on the element the
+  // moment TipTap creates it — see `addNodeView` at the bottom of this file for why
+  // doing it from an effect in this component silently failed.
 
   // A nested checklist renders no fold of its own. Its completed items are
   // already counted by the list it sits inside, and a fold opening inside a
@@ -169,7 +163,39 @@ export const TaskListWithChecked = TaskList.extend<TaskListWithCheckedOptions>({
       showCheckedFold: true,
     };
   },
+  // ── Why the `ul` is marked HERE, at the moment it is created ─────────────────
+  //
+  // Every checklist rule in index.css — the row layout, the 18px box, the 24px box
+  // and wider tap target on touch screens, the first-line alignment — matches
+  // `ul[data-type="taskList"]`. The plain extension's `renderHTML` writes that
+  // attribute; a React node view does not, because TipTap builds the `ul` itself
+  // (`contentDOMElementTag`) and gives it none of the node's attributes.
+  //
+  // It used to be stamped back on from an effect inside TaskListView, which looked
+  // the node up by position with `editor.view.nodeDOM(pos)`. That worked for every
+  // checklist that was already in a note when it opened, and failed for every
+  // checklist INSERTED while editing: the effect ran before ProseMirror had put the
+  // new node view in place, found nothing, and never ran again because `pos` did not
+  // change. So a new checklist matched none of the rules and fell back to browser
+  // defaults — a bullet, a tiny 13px native box, and the item's text pushed onto the
+  // line below it because the row was no longer a flex row. It read as if the
+  // checkbox sizing work had been deleted; the CSS was intact the whole time, it
+  // just had nothing to match.
+  //
+  // The fix is to stop racing the editor. TipTap creates the `ul` exactly once, in
+  // the node view's constructor, and only ever moves that same element into place
+  // afterwards. Marking it right there — synchronously, before the first paint —
+  // covers every way a checklist can appear (opening a note, the toolbar, the slash
+  // menu, paste, undo) and has no timing to get wrong.
   addNodeView() {
-    return ReactNodeViewRenderer(TaskListView, { contentDOMElementTag: "ul" });
+    const render = ReactNodeViewRenderer(TaskListView, { contentDOMElementTag: "ul" });
+    return (props) => {
+      const view = render(props);
+      // `contentDOM` is absent only when the renderer declines to build a view at
+      // all (no React content component yet), in which case there is no `ul` to mark.
+      const content = (view as { contentDOM?: HTMLElement | null }).contentDOM;
+      content?.setAttribute("data-type", "taskList");
+      return view;
+    };
   },
 });

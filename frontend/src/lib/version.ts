@@ -1,7 +1,7 @@
 // What version of Lockpad is this, and where does someone go to see what changed.
 //
 // The version is BAKED IN at build time (`VITE_APP_VERSION`, set by the Dockerfile
-// and by CI — see docs/RELEASING.md). It is deliberately not stored in the database
+// and by CI from the release tag). It is deliberately not stored in the database
 // and not fetched from anywhere: a value that travels with the build artifact can
 // never disagree with the code that is running. Update the image, and the number
 // changes by itself.
