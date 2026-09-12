@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -114,8 +114,43 @@ function ListScreen(props: ListScreenProps) {
 function ListScreenBody({ title, icon, params, emptyLabel, archiveScope, pinScope }: ListScreenProps) {
   const t = useT();
   // At 2+ selected the bulk bar replaces the composer in the same slot.
-  const { count } = useSelection();
+  const { count, selectionMode, clear } = useSelection();
   const { noteId } = useNoteSheet();
+
+  // Escape ends a selection — the keyboard twin of the bar's Deselect button.
+  //
+  // Armed on ANY selection, not only from two notes up where the bar appears. With a
+  // single note ticked the checkboxes are already pinned visible on every card and
+  // there is no bar to dismiss it from, so Escape is the only quick way out of that
+  // state; leaving it inert at one and live at two would feel broken.
+  //
+  // Escape already means something to several other layers, and this has to come
+  // LAST, after all of them have had their say:
+  //
+  //   - A popover, dialog, menu or tooltip. Radix listens on `document` in the
+  //     CAPTURE phase and calls preventDefault() on the key when it dismisses a layer
+  //     (react-dismissable-layer), so by the time the event bubbles up to `window`,
+  //     `defaultPrevented` says truthfully that this Escape was already spent. That
+  //     covers the bar's own Move and Tag pickers, their mobile drawers, search, the
+  //     shortcuts reference and every confirm dialog. It is also why a tooltip still
+  //     showing under the pointer takes the first press and the selection the
+  //     second: Escape dismisses the topmost thing, one thing per press.
+  //   - An open note. Layout's handler closes it without preventDefault, so it is
+  //     checked by name: pressing Escape to leave a note must not also throw away the
+  //     selection waiting in the list behind it.
+  //   - Typing. An Escape inside a text field belongs to that field — a folder being
+  //     renamed in the sidebar, say — and should never reach out and clear cards.
+  useEffect(() => {
+    if (!selectionMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || noteId) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || el.closest("input, textarea, select, [contenteditable='true']"))) return;
+      clear();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectionMode, noteId, clear]);
   const isMobile = useIsMobile();
   const reduceMotion = useReducedMotion();
   // Whether the list has scrolled from the top — drives the top-of-list fade.

@@ -25,7 +25,7 @@ only ever stores ciphertext for them.
      here and it renders as an inline player. It has to be done through the web UI —
      there is no API for it, and no repo path can substitute. -->
 
-**Current release: v1.1.1 "Abomey".** What is in it, and what changed since:
+**Current release: v1.1.2 "Abomey".** What is in it, and what changed since:
 [CHANGELOG.md](CHANGELOG.md).
 
 ## 📦 Install

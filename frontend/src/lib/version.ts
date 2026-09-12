@@ -12,8 +12,10 @@
 // that; whether a newer release exists is worth a click, not a beacon.
 
 // CI passes the git tag on a tagged build ("v1.3.0"), and a short commit marker
-// otherwise ("main-a1b2c3d"). A local `docker compose build` passes nothing, so the
-// Dockerfile's own default of "dev" applies.
+// otherwise ("main-a1b2c3d"). A local `docker compose build` passes nothing, and the
+// Dockerfile then derives "v1.3.0+src" from package.json — a source build says WHICH
+// release it was built from, and the `+src` says it is not the published artifact of
+// that number. Only a tree with no usable version falls back to "dev".
 const RAW = import.meta.env.VITE_APP_VERSION?.trim();
 
 /** The exact string the build was stamped with. Never empty. */

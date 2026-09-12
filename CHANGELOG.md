@@ -7,27 +7,63 @@ difference to anyone using the app, it is not in here.
 
 ---
 
-## 🔖 v1.1.1 — "Abomey" · 2026-09-06
+## 🔖 v1.1.2 — "Abomey" · 2026-09-12
 
-**Nothing in the app changed.** Same code as v1.1.0, rebuilt — if you are already
-running v1.1.0 there is no reason to update, and if you are installing fresh you get
-exactly what v1.1.0 was. This release exists to correct the project's own front page,
-which was saying three untrue things at once.
+Everyday work with a batch of notes gets less repetitive, and the folder colour picker
+gets more room in it. Nothing here changes how Lockpad stores or protects anything.
+
+A patch release, so it keeps the Abomey name: small improvements to how the app feels
+day to day, and one fix that matters to anyone running nightly backups.
+
+### 🆕 Added
+
+- **Shift+click selects every note in between.** Tick a note, hold Shift and click
+  another, and everything between the two is selected, in the order the list shows them —
+  across the line between pinned notes and the rest, too. Shift+click again and the far
+  end of the range moves, in either direction; notes you ticked by hand stay ticked the
+  whole time. With nothing selected yet, Shift+click simply selects the note you clicked.
+- **Escape deselects every note.** Anything open on top of the list goes first, one thing
+  per press: a folder picker, a dialog, an open note. So pressing Escape to leave a note
+  never throws away the selection waiting behind it.
+- **Fifteen more folder colours,** behind "More colors" in the folder colour picker: a
+  deeper shade of each of the ten pastels, plus raspberry, fuchsia, orchid, cyan and lime.
+  Editing a folder whose colour lives in that second row opens straight onto it, so its
+  colour never looks as if it has been cleared.
+
+### 📈 Improved
+
+- **A selection survives a move or a tag.** Filing notes into a folder no longer unticks
+  them, so a batch can be moved and then tagged without selecting it all again. Deselect
+  is the one control that ends a selection now. Archiving or deleting still clears it,
+  because those notes leave the list.
+- **The selection bar says what it counts, and what its last button does.** It reads
+  "2 notes selected" instead of "2 selected", and "Clear" is now "Deselect". In French it
+  is "Désélectionner" rather than "Effacer", which read as erasing the notes themselves.
+- **The selection bar stays on one line in French.** It is a little wider, so the longer
+  French labels no longer push the buttons onto a second row — and when a narrow window
+  does make it wrap, the buttons no longer sit beside an empty gap on their left.
+- **The folder colour picker shows its two choices.** The ready-made colours and a custom
+  hex value are now two labelled groups instead of one block with a sentence explaining
+  them, and the tick marks only the one in use. Each colour tells a screen reader whether
+  it is selected, and the hex field has a real label instead of a placeholder.
+- **A copy built from source says which release it came from.** Settings → About shows
+  the version it was built from, such as `v1.1.2+src`, instead of "Development build".
 
 ### 🩹 Fixed
 
-- **The README said you were on v1.0.0.** That line was written by hand and nothing
-  ever updated it, so it went stale the moment v1.1.0 shipped. It is now rewritten by
-  the release script from the changelog entry, which means it cannot drift again
-  without the release failing outright.
-- **The "watch the demo" link led to an error.** GitHub will not render a video that
-  size — it answers "we can't show files that are this big right now" — and the raw
-  URL downloads 8 MB instead of playing. The link is gone until there is one that
-  works; the screenshot above it was already doing the same job.
-- **The build badge said "failing" when nothing had failed.** It was reporting a second,
-  redundant build of the same release commit, which existed only to give the badge
-  something to report and was killed by its own timeout. Both the badge and the
-  duplicate build are gone. A release now builds once.
+- **A failed backup no longer leaves an empty archive behind.** When `scripts/backup.sh`
+  could not reach the database it still wrote a tiny file that looked like a backup, and
+  that file took one of the fourteen kept slots — so enough failures in a row would push
+  every real backup out. It now keeps an archive only when there is data in it, and leaves
+  nothing when there is not.
+
+---
+
+## 🔖 v1.1.1 — "Abomey" · 2026-09-06
+
+Identical to v1.1.0 for anyone using Lockpad. It corrected the project's own README
+and build setup, which should not have needed a version number, and documentation
+changes like that are now published without one.
 
 ---
 

@@ -79,8 +79,42 @@ export const en = {
   "nav.field.namePlaceholder.folder": "Folder name",
   "nav.field.namePlaceholder.tag": "Tag name",
   "nav.field.color": "Color",
-  "nav.field.colorHint": "Pick a preset, or enter any hex value.",
+  // The two groups inside the Color field. They replaced a helper sentence that
+  // described a choice the layout did not show.
+  "nav.field.presets": "Palette",
+  "nav.field.custom": "Custom",
+  "nav.field.customHex": "Custom color, as a hex value",
   "nav.field.colorSwatch": "Color {value}",
+  "nav.field.moreColors": "More colors",
+  "nav.field.fewerColors": "Fewer colors",
+  // The picker's swatch names. Every hex value in Sidebar.tsx's PASTELS and
+  // MORE_COLORS maps to exactly one of these — see ColorNameKey there. Named for
+  // what a person would call the colour, not for the Tailwind stop it happens to be.
+  "nav.field.colorName.softMint": "Soft mint",
+  "nav.field.colorName.softSky": "Soft sky",
+  "nav.field.colorName.softIndigo": "Soft indigo",
+  "nav.field.colorName.softViolet": "Soft violet",
+  "nav.field.colorName.softPink": "Soft pink",
+  "nav.field.colorName.softRed": "Soft red",
+  "nav.field.colorName.softOrange": "Soft orange",
+  "nav.field.colorName.softAmber": "Soft amber",
+  "nav.field.colorName.softGreen": "Soft green",
+  "nav.field.colorName.softTeal": "Soft teal",
+  "nav.field.colorName.deepMint": "Deep mint",
+  "nav.field.colorName.deepSky": "Deep sky",
+  "nav.field.colorName.deepIndigo": "Deep indigo",
+  "nav.field.colorName.deepViolet": "Deep violet",
+  "nav.field.colorName.deepPink": "Deep pink",
+  "nav.field.colorName.deepRed": "Deep red",
+  "nav.field.colorName.deepOrange": "Deep orange",
+  "nav.field.colorName.deepAmber": "Deep amber",
+  "nav.field.colorName.deepGreen": "Deep green",
+  "nav.field.colorName.deepTeal": "Deep teal",
+  "nav.field.colorName.raspberry": "Raspberry",
+  "nav.field.colorName.fuchsia": "Fuchsia",
+  "nav.field.colorName.orchid": "Orchid",
+  "nav.field.colorName.cyan": "Cyan",
+  "nav.field.colorName.lime": "Lime",
   "nav.saveFailed": "Could not save. Please try again.",
 
   "nav.form.save": "Save changes",
@@ -146,6 +180,7 @@ export const en = {
   "shortcut.newNote": "New note",
   "shortcut.toggleSidebar": "Show or hide the sidebar",
   "shortcut.closeNote": "Close the note",
+  "shortcut.deselectAll": "Deselect all notes",
   "shortcut.bold": "Bold",
   "shortcut.italic": "Italic",
   "shortcut.strikethrough": "Strikethrough",
@@ -179,6 +214,7 @@ export const en = {
   "shortcut.when.list": "inside a list",
   "shortcut.when.composer": "in the quick-note bar",
   "shortcut.when.note": "while a note is open",
+  "shortcut.when.selection": "while notes are selected",
   "shortcut.key.up": "Up arrow",
   "shortcut.key.down": "Down arrow",
   "image.addDescription": "Add a description",
@@ -221,7 +257,7 @@ export const en = {
   },
 
   "list.archivedNotes": "Archived notes",
-  "bulk.unselectAll": "Unselect all",
+  "bulk.deselectAll": "Deselect all",
   "bulk.moveToFolderPlaceholder": "Move to folder…",
   "bulk.addTagPlaceholder": "Add tag…",
   "image.resize": "Resize image",
@@ -576,11 +612,20 @@ export const en = {
   "selector.tags.create": "Create “{name}”",
   "selector.tags.remove": "Remove the #{name} tag",
 
+  // Names the thing, not just the number. "2 selected" made the reader supply the
+  // noun themselves, and the bar is the one place in the app that says what every
+  // button below it is about to act on. The digit stays a digit: spelling it out
+  // would need a number-to-words pass in every language and reads badly the moment
+  // a batch gets large ("one hundred twenty-eight notes selected").
   "bulk.selected": {
-    one: "{count} selected",
-    other: "{count} selected",
+    one: "{count} note selected",
+    other: "{count} notes selected",
   },
-  "bulk.clear": "Clear",
+  // "Clear" named the wrong object. It clears the SELECTION, but sitting in a row
+  // next to Archive and Delete it read as clearing the notes — and the French was
+  // worse still: "Effacer" is the ordinary verb for erasing something, so the one
+  // safe control in the bar was the one that sounded the most destructive.
+  "bulk.deselect": "Deselect",
   "bulk.moveToFolder": "Move to folder",
   "bulk.addTag": "Add tag",
   "bulk.noFolder": "No folder found.",
@@ -601,6 +646,11 @@ export const en = {
     one: "Tagged {count} note with #{name}",
     other: "Tagged {count} notes with #{name}",
   },
+  // The selection now survives a move or a tag, so the menu closes on the click
+  // rather than on success — which means a failure would otherwise be completely
+  // silent. "Nothing was changed" is a promise the server keeps: /notes/bulk applies
+  // the whole batch in one transaction, so a failed batch left none of it applied.
+  "bulk.failed": "That change could not be applied. Nothing was changed.",
 
   "common.undo": "Undo",
 

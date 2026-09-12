@@ -28,7 +28,7 @@ REPO_RAW="https://raw.githubusercontent.com/Colbysdovi/Lockpad-Public/main"
 #
 # scripts/release.sh rewrites this line, so it cannot drift from the tag that was
 # actually cut. If you are editing it by hand, you are probably doing it wrong.
-LOCKPAD_VERSION="v1.1.1"
+LOCKPAD_VERSION="v1.1.2"
 COMPOSE_FILE="docker-compose.public.yml"
 TS_FILE="docker-compose.tailscale.yml"
 TS_SERVE="tailscale/serve.json"

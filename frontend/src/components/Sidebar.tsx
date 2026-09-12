@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ChevronRight, ChevronDown, Folder as FolderIcon, Hash, Plus, Pencil, Home, Archive, Trash2, Check, Settings2, TriangleAlert } from "@/components/icons";
@@ -14,6 +14,8 @@ import { findNameCollision } from "@/lib/names";
 import { flattenFolders } from "./selectors";
 import { ApiError } from "@/lib/api";
 import { useT } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
+import { EASE_FOLLOW_CSS, FOLDER_COLOR_REVEAL_MS } from "@/lib/motion";
 
 // The navigation rail: every way of getting somewhere in the library.
 //
@@ -114,11 +116,85 @@ function groupTags(tags: Tag[]): { frequent: Tag[]; rest: Tag[] } {
   return { frequent, rest };
 }
 
-// Predefined pastel palette for folders (plus free-form hex entry).
+// Predefined pastel palette for folders (plus free-form hex entry). Shown by default,
+// unchanged from before "More colors" existed — nothing about opening the picker for
+// the first time looks any different.
 const PASTELS = [
   "#a7f3d0", "#bae6fd", "#c7d2fe", "#ddd6fe", "#fbcfe8",
   "#fecaca", "#fed7aa", "#fde68a", "#bbf7d0", "#99f6e4",
 ];
+
+// A second tier, behind "More colors": a richer twin of each PASTELS hue (same family,
+// deeper/more saturated), plus five hues PASTELS has no equivalent for at all
+// (raspberry, fuchsia, orchid, cyan, lime). Checked against Lockpad's actual light and
+// dark `--card` tokens before picking these — every one of the 15 still clears WCAG's
+// 3:1 non-text contrast bar for the existing selected-state checkmark (weakest is deep
+// indigo at ~4.6:1), so the checkmark itself needed no change to work here.
+const MORE_COLORS = [
+  "#34d399", "#38bdf8", "#818cf8", "#a78bfa", "#f472b6",
+  "#f87171", "#fb923c", "#fbbf24", "#4ade80", "#2dd4bf",
+  "#fb7185", "#e879f9", "#c084fc", "#22d3ee", "#a3e635",
+];
+
+// Every catalogue key under nav.field.colorName.* — narrowed from the full MessageKey
+// union via the prefix, so a typo or a key that never made it into catalog.en.ts is a
+// compile error here rather than a swatch that silently announces nothing.
+type ColorNameKey = Extract<MessageKey, `nav.field.colorName.${string}`>;
+
+// Hex → its translatable name, shared by both tiers' swatches. A raw hex value
+// ("Color #a7f3d0") stopped being a usable screen-reader label once there were 25
+// swatches to tell apart instead of 10 — two shades of the same hue are indistinguishable
+// by ear as hex codes, but not as "Soft mint" vs. "Deep mint".
+const COLOR_NAME_KEYS: Record<string, ColorNameKey> = {
+  "#a7f3d0": "nav.field.colorName.softMint",
+  "#bae6fd": "nav.field.colorName.softSky",
+  "#c7d2fe": "nav.field.colorName.softIndigo",
+  "#ddd6fe": "nav.field.colorName.softViolet",
+  "#fbcfe8": "nav.field.colorName.softPink",
+  "#fecaca": "nav.field.colorName.softRed",
+  "#fed7aa": "nav.field.colorName.softOrange",
+  "#fde68a": "nav.field.colorName.softAmber",
+  "#bbf7d0": "nav.field.colorName.softGreen",
+  "#99f6e4": "nav.field.colorName.softTeal",
+  "#34d399": "nav.field.colorName.deepMint",
+  "#38bdf8": "nav.field.colorName.deepSky",
+  "#818cf8": "nav.field.colorName.deepIndigo",
+  "#a78bfa": "nav.field.colorName.deepViolet",
+  "#f472b6": "nav.field.colorName.deepPink",
+  "#f87171": "nav.field.colorName.deepRed",
+  "#fb923c": "nav.field.colorName.deepOrange",
+  "#fbbf24": "nav.field.colorName.deepAmber",
+  "#4ade80": "nav.field.colorName.deepGreen",
+  "#2dd4bf": "nav.field.colorName.deepTeal",
+  "#fb7185": "nav.field.colorName.raspberry",
+  "#e879f9": "nav.field.colorName.fuchsia",
+  "#c084fc": "nav.field.colorName.orchid",
+  "#22d3ee": "nav.field.colorName.cyan",
+  "#a3e635": "nav.field.colorName.lime",
+};
+
+// One swatch button, shared by the default row and the "More colors" row — so the two
+// cannot drift into different sizes, hit targets, or labelling as either grows.
+function ColorSwatch({ color, selected, onSelect }: { color: string; selected: boolean; onSelect: () => void }) {
+  const t = useT();
+  const nameKey = COLOR_NAME_KEYS[color];
+  const name = nameKey ? t(nameKey) : color;
+  return (
+    <button
+      type="button"
+      aria-label={t("nav.field.colorSwatch", { value: name })}
+      // The checkmark is the only sign of selection, and it is purely visual. Without
+      // this a screen reader heard 25 identical-sounding buttons and no way to tell
+      // which colour the folder currently has.
+      aria-pressed={selected}
+      onClick={onSelect}
+      className="flex h-7 w-7 items-center justify-center rounded-full border max-sm:h-10 max-sm:w-10"
+      style={{ background: color }}
+    >
+      {selected && <Check className="h-4 w-4 text-black/70 max-sm:h-5 max-sm:w-5" />}
+    </button>
+  );
+}
 
 // One popover for BOTH creating and editing a folder — same name + colour form. With
 // no `folder` it creates; with a `folder` it opens pre-filled and PATCHes (and offers
@@ -213,6 +289,12 @@ function FolderFormPopover({ folder, trigger }: { folder?: Folder; trigger: Reac
   const [name, setName] = useState(folder?.name ?? "");
   const [color, setColor] = useState<string>(folder?.color ?? PASTELS[0]);
   const [serverError, setServerError] = useState<string | null>(null);
+  // "More colors": closed by default, opened by the reset effect below (with no
+  // animation, since that is the popover appearing, not a click) when the folder
+  // being edited already has one of the hidden colours.
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  const moreAnimRef = useRef<Animation | null>(null);
 
   // Every folder name in the tree except this one's.
   //
@@ -249,13 +331,52 @@ function FolderFormPopover({ folder, trigger }: { folder?: Folder; trigger: Reac
     setName(folder?.name ?? "");
     setColor(folder?.color ?? PASTELS[0]);
     setServerError(null);
+    // Land straight on "More colors" open, unanimated, when the folder's own colour
+    // lives there — otherwise it would read as if editing had cleared the colour,
+    // until the row was found and opened by hand.
+    setMoreOpen(!!folder?.color && MORE_COLORS.includes(folder.color));
   }, [open, folder?.name, folder?.color]);
+
+  // Opens or closes the "More colors" row, animating its height from whatever it
+  // currently measures to its real natural height — never a guessed max-height, since
+  // 15 swatches wrap differently at every popover width. `scrollHeight` reports that
+  // real height correctly even while the row is still clipped to 0, so both ends of
+  // the animation are read before React's own re-render (from setMoreOpen) touches the
+  // DOM at all.
+  const toggleMore = () => {
+    const opening = !moreOpen;
+    const el = moreRef.current;
+    setMoreOpen(opening);
+    if (!el) return;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (reduce?.matches) return; // the row's own height classes just snap instead
+    const from = el.offsetHeight;
+    const to = opening ? el.scrollHeight : 0;
+    moreAnimRef.current?.cancel(); // don't stack a second reveal on a fast double-click
+    el.style.overflow = "hidden";
+    const anim = el.animate([{ height: `${from}px` }, { height: `${to}px` }], {
+      duration: FOLDER_COLOR_REVEAL_MS,
+      easing: EASE_FOLLOW_CSS,
+    });
+    moreAnimRef.current = anim;
+    const settle = () => {
+      if (moreAnimRef.current !== anim) return; // superseded by a later toggle
+      el.style.overflow = "";
+      moreAnimRef.current = null;
+    };
+    anim.addEventListener("finish", settle);
+    anim.addEventListener("cancel", settle);
+  };
 
   // A stale refusal outlives the name that caused it otherwise: type into the field
   // and the server's message would sit there contradicting the live check.
   useEffect(() => setServerError(null), [name]);
 
   const pending = createFolder.isPending || updateFolder.isPending || deleteFolder.isPending;
+  // True when the colour is not one of the 25 swatches, i.e. it came from the hex field.
+  // Compared case-insensitively because the field accepts "#A7F3D0" as happily as
+  // "#a7f3d0", and a hand-typed preset should still tick its swatch, not Custom.
+  const isCustomColor = ![...PASTELS, ...MORE_COLORS].includes(color.trim().toLowerCase());
   const blocked = !!findNameCollision(name, takenBy);
 
   const submit = async () => {
@@ -298,36 +419,104 @@ function FolderFormPopover({ folder, trigger }: { folder?: Folder; trigger: Reac
         {/* Name — a titled field, mirroring the Color section below. */}
         <NameField entity="folder" value={name} onChange={setName} onSubmit={submit} takenBy={takenBy} serverError={serverError} />
 
-        {/* Colour — a preset OR a free-form hex; the helper line spells out the choice
-            so the two inputs don't read as competing. */}
-        <div className="flex flex-col gap-2.5">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs font-medium text-muted-foreground max-sm:text-sm">{t("nav.field.color")}</span>
-            {/* Same call as the section label above: the old 80% measured 3.57:1 light /
-                3.64:1 dark on 12px text, so full strength stays. */}
-            <span className="text-xs text-muted-foreground">{t("nav.field.colorHint")}</span>
-          </div>
-          <div className="flex flex-wrap gap-2 max-sm:gap-3">
-            {PASTELS.map((c) => (
+        {/* Colour — two ways to choose one, laid out as two things rather than explained.
+
+            It used to be a single block under one label, with a helper line ("Pick a
+            preset, or enter any hex value") doing the work the layout was not doing:
+            presets, the "More colors" toggle and the hex row all stood at the same level,
+            the toggle sat BETWEEN the presets and the custom row as though it belonged to
+            the hex field, and the hex row had no label at all. The sentence was
+            describing a structure the screen did not have.
+
+            Now the structure carries it. "Color" is the field; beneath it, two groups
+            with their own small headings — Palette (the presets, with More colors
+            directly under the swatches it extends) and Custom (the hex value), divided
+            by a hairline. The helper line is gone because nothing is left for it to say.
+
+            The sub-headings reuse the sidebar's own section-heading treatment (10px,
+            semibold, uppercase, tracked — see the group label near the top of this file)
+            so they read as a tier BELOW "Color" and not as rival fields. */}
+        <div className="flex flex-col gap-2.5 max-sm:gap-3">
+          <span className="text-xs font-medium text-muted-foreground max-sm:text-sm">{t("nav.field.color")}</span>
+
+          {/* ── Palette ─────────────────────────────────────────────────────────── */}
+          <div role="group" aria-label={t("nav.field.presets")} className="flex flex-col gap-2 max-sm:gap-3">
+            <span aria-hidden="true" className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:text-xs">
+              {t("nav.field.presets")}
+            </span>
+            <div className="flex flex-wrap gap-2 max-sm:gap-3">
+              {PASTELS.map((c) => (
+                <ColorSwatch key={c} color={c} selected={color === c} onSelect={() => setColor(c)} />
+              ))}
+            </div>
+            {/* One flex child for the toggle AND the row it reveals, so the group's own
+                gap inserts exactly one gap here instead of a gap on either side of a
+                collapsed, zero-height sibling. Inside the Palette group now, directly
+                under the swatches it extends, rather than floating between the presets
+                and the custom row as if it belonged to either. */}
+            <div className="flex flex-col">
               <button
-                key={c}
-                aria-label={t("nav.field.colorSwatch", { value: c })}
-                onClick={() => setColor(c)}
-                className="flex h-7 w-7 items-center justify-center rounded-full border max-sm:h-10 max-sm:w-10"
-                style={{ background: c }}
+                type="button"
+                aria-expanded={moreOpen}
+                onClick={toggleMore}
+                className="-mx-1 flex items-center gap-1 self-start rounded px-1 py-1 text-xs text-muted-foreground transition-colors hover-scrim hover:text-foreground max-sm:text-sm"
               >
-                {color === c && <Check className="h-4 w-4 text-black/70 max-sm:h-5 max-sm:w-5" />}
+                {t(moreOpen ? "nav.field.fewerColors" : "nav.field.moreColors")}
+                <ChevronDown
+                  aria-hidden="true"
+                  className={cn("h-3.5 w-3.5 transition-transform max-sm:h-4 max-sm:w-4", moreOpen && "rotate-180")}
+                />
               </button>
-            ))}
+              {/* Always mounted (never conditionally rendered) so `moreRef` has a real,
+                  measurable element to read `scrollHeight` from at the moment of the very
+                  first click — a row that only mounts once opened would report 0 for its
+                  own natural height on that first toggle. Collapsed by the plain height/
+                  overflow utilities at rest; `toggleMore` takes over with an explicit
+                  inline height only for the duration of the animation itself. */}
+              <div ref={moreRef} className={cn(!moreOpen && "h-0 overflow-hidden")}>
+                <div className="flex flex-wrap gap-2 pt-2 max-sm:gap-3 max-sm:pt-3">
+                  {MORE_COLORS.map((c) => (
+                    <ColorSwatch key={c} color={c} selected={color === c} onSelect={() => setColor(c)} />
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="h-9 w-9 shrink-0 rounded-full border max-sm:h-12 max-sm:w-12" style={{ background: color }} />
-            <Input
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-              placeholder="#a7f3d0"
-              className="font-mono max-sm:h-12 max-sm:text-base"
-            />
+
+          {/* ── Custom ──────────────────────────────────────────────────────────── */}
+          {/* The hairline is what makes these two groups rather than one long list: the
+              presets end, and a different kind of input begins. */}
+          <div role="group" aria-label={t("nav.field.custom")} className="flex flex-col gap-2 border-t pt-3 max-sm:gap-3 max-sm:pt-4">
+            <span aria-hidden="true" className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:text-xs">
+              {t("nav.field.custom")}
+            </span>
+            <div className="flex items-center gap-2">
+              {/* A preview of the value in the field, and — new — the Custom group's own
+                  selected state. It used to show the same circle whatever was chosen, so
+                  with a preset selected the screen showed that colour twice, once ticked
+                  and once not, and nothing said which of the two inputs was in charge.
+                  The tick now appears here only when the colour matches no swatch:
+                  exactly one place on the form carries the tick at any moment. */}
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border max-sm:h-12 max-sm:w-12",
+                  isCustomColor && "ring-2 ring-primary ring-offset-2 ring-offset-card"
+                )}
+                style={{ background: color }}
+              >
+                {isCustomColor && <Check className="h-4 w-4 text-black/70 max-sm:h-5 max-sm:w-5" />}
+              </span>
+              <Input
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                placeholder="#a7f3d0"
+                // Its only label used to be the placeholder, which disappears as soon as
+                // there is a value — and there always is one.
+                aria-label={t("nav.field.customHex")}
+                className="font-mono max-sm:h-12 max-sm:text-base"
+              />
+            </div>
           </div>
         </div>
 

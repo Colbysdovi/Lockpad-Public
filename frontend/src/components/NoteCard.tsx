@@ -247,15 +247,22 @@ export function NoteCard({
     return () => document.removeEventListener("pointerdown", onDown);
   }, [revealed]);
 
-  const handleCardClick = () => {
+  const handleCardClick = (e: React.MouseEvent) => {
     // Swallow the click that follows a long-press so it doesn't open the note.
     if (longPress.firedRef.current) {
       longPress.firedRef.current = false;
       return;
     }
     // While selecting, a card tap toggles its selection instead of opening it.
-    if (canSelect && selection.selectionMode) {
-      selection.toggle(note.id);
+    //
+    // Holding Shift makes the click a RANGE gesture instead, and it does so whether
+    // or not anything is selected yet — so Shift+click on a card always means
+    // "selection", never "open". With an anchor it extends from there; without one
+    // it just selects this note, which is what makes the gesture worth trying
+    // before you have ticked anything. A plain click is untouched either way.
+    if (canSelect && (e.shiftKey || selection.selectionMode)) {
+      if (e.shiftKey) selection.extendTo(note.id);
+      else selection.toggle(note.id);
       return;
     }
     openFromCard();
@@ -546,6 +553,20 @@ export function NoteCard({
         exiting?.kind === "archive" && "!shadow-none"
       )}
       onClick={handleCardClick}
+      // Shift+click belongs to range-select now, so the browser must not ALSO
+      // extend a text selection from wherever the caret happens to be — which it
+      // does on mousedown, striping highlighted text across every card in the
+      // range. Card text has no `user-select: none`, so this is the only thing
+      // stopping it. Cancelled at the source rather than cleaned up afterwards,
+      // because a selection removed on click has already been painted.
+      //
+      // The cost is that Shift+click can no longer extend a text selection inside a
+      // note card, which click-and-drag still does. Only on selectable (active)
+      // cards, and only with Shift held. Safe to add next to the long-press
+      // handlers below: those are pointer events, so nothing here is overwritten.
+      onMouseDown={(e) => {
+        if (canSelect && e.shiftKey) e.preventDefault();
+      }}
       // Capped stagger so a BULK undo cascades back in the way it cascaded out,
       // instead of every restored card snapping back on the same frame. 0 for a
       // single undo (the restored note sorts to the front of the list).
@@ -597,7 +618,10 @@ export function NoteCard({
           aria-label={selected ? t("note.deselect") : t("note.select")}
           onClick={(e) => {
             e.stopPropagation();
-            selection.toggle(note.id);
+            // Identical branch to the card body's, so the gesture does the same
+            // thing wherever it is aimed — the tick is just the smaller target.
+            if (e.shiftKey) selection.extendTo(note.id);
+            else selection.toggle(note.id);
           }}
           className={cn(
             // Sits on the top-left corner (outside the content box) so revealing

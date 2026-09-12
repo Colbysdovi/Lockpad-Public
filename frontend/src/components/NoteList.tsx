@@ -4,6 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { NotebookPen, Plus } from "@/components/icons";
 import { useNotesList, type ListParams } from "@/lib/hooks";
 import { useNewNote } from "@/lib/useNewNote";
+import { useSelection } from "@/lib/useSelection";
 import { useNoteSheet } from "@/lib/useNoteSheet";
 import { hasArrival, consumeArrival, isJustCreated } from "@/lib/noteFx";
 import { CARD_ARRIVE_MS, EASE_FOLLOW } from "@/lib/motion";
@@ -144,6 +145,30 @@ export const NoteList = forwardRef<NoteListHandle, NoteListProps>(function NoteL
   const [arrivingIds, setArrivingIds] = useState<ReadonlySet<string>>(() => new Set());
   const arriveTimers = useRef(new Map<string, number>());
   const idsKey = notes.map((n) => n.id).join(",");
+
+  // Publish this list's order so a Shift+click range can be computed against it.
+  //
+  // The selection provider cannot work out the visible order by itself — the notes
+  // on screen come from two separate queries — so each renderer hands over its own
+  // run of ids and where it sits vertically. This is rank 1; the Pinned section
+  // above is rank 0.
+  //
+  // It is deliberately `notes` and not the virtualizer's window: a note scrolled out
+  // of view is still part of the list being looked at and belongs inside a range
+  // spanning it. Notes not yet FETCHED are simply absent, which is the correct limit
+  // — a range can only cover what the list currently holds.
+  //
+  // On the Archive and Trash pages there is no provider above this, so `setRangeSegment`
+  // is the context default and this call does nothing. Registering an empty run on the
+  // way out keeps a stale order from outliving the component in every other case.
+  const { setRangeSegment } = useSelection();
+  useEffect(() => {
+    setRangeSegment("list", 1, notes.map((n) => n.id));
+    return () => setRangeSegment("list", 1, []);
+    // Keyed on the joined ids rather than the array, which is rebuilt every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey, setRangeSegment]);
+
   useEffect(() => {
     // Every note owed an arrival, not just the first: two creates landing in the
     // same refetch used to leave one of them animating and the other appearing from

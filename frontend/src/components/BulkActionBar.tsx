@@ -30,8 +30,42 @@ import { useT } from "@/lib/i18n";
 // puts them back untouched. `reverse` on the toast makes the Undo replay each card's
 // exit animation backwards, so the rewind is legible rather than a sudden reappearance.
 //
-// Every action clears the selection afterwards. Acting on a batch means you are done
-// with that batch; leaving it ticked invites accidentally acting on it twice.
+// ── The selection SURVIVES a change, and why that is not uniform ────────────
+//
+// It used to be cleared after every action, on the reasoning that acting on a batch
+// means you are done with it. In practice that made the common case painful: filing
+// thirty notes into a folder AND tagging them meant selecting all thirty, moving
+// them, then selecting all thirty again. The selection is the expensive thing the
+// user built; an action should spend it, not destroy it.
+//
+// So move and tag now leave the selection alone. Apply as many as you like; the bar
+// stays until you dismiss it with Deselect, which is the only control that ends a
+// selection now.
+//
+// Archive and delete still clear it, and that is a real distinction rather than an
+// inconsistency: those two REMOVE THE NOTES FROM THE LIST. Keeping thirty
+// now-archived notes ticked would leave the bar reporting a selection with nothing
+// on screen behind it, and the next button press would tag or move notes the user
+// can no longer see — with an Undo toast still offering to bring them back, to a
+// state that has since been edited underneath it. Emptying the list is the end of
+// the batch whether or not the user says so.
+//
+// One consequence worth knowing: moving notes out of the folder you are looking at
+// also takes them off screen, and there the selection DOES survive. That is
+// deliberate — "file these, then tag them" is exactly the sequence this change
+// exists for — but it means the count can outlive the cards. Deselect ends it.
+// The five action buttons, trimmed narrower than a Button is by default.
+//
+// `size="default"` pays px-5 on a phone and px-4 on a pointer device, which is right
+// for a button standing on its own and wasteful for five of them side by side in a
+// bar that is already at its width limit. px-3 buys back 40px across the row.
+//
+// The `sm:` copy is not redundant. The variant spells its desktop padding `sm:px-4`,
+// and an unprefixed utility cannot override a prefixed one at widths above the
+// breakpoint no matter how late it merges — so a bare `px-3` would silently apply on
+// phones only, which is the one place it was not needed.
+const ACTION_BTN = "gap-1.5 px-3 sm:px-3";
+
 export function BulkActionBar() {
   const t = useT();
   const { selectedIds, count, clear } = useSelection();
@@ -70,6 +104,10 @@ export function BulkActionBar() {
     beginBulkExit(ids, kind);
     // Emptying the selection here rather than on success returns the composer as the
     // cards leave, and makes a second click on a batch already on its way impossible.
+    //
+    // Archive and delete are the only actions that still do this. See the note at the
+    // top of the file: these two take the notes off the list, so a surviving selection
+    // would point at cards that are no longer there.
     clear();
     const settled = quietBulk({ action: kind, ids }).catch(() => {});
     // Waited at the CAP rather than at this batch's own longest index: the stagger a
@@ -109,13 +147,44 @@ export function BulkActionBar() {
   // Move and tag are not destructive and get a plain confirmation toast with no
   // Undo — the change is visible in the list and trivially reversed by hand.
   // `folderId: null` is "take these out of any folder", offered as its own row.
+  //
+  // Both are idempotent on the server (a tag already present, a folder already set),
+  // which is what makes leaving the selection ticked safe: the worst a double click
+  // can do is apply the same change twice.
+  //
+  // ── Closing the popover is now this function's job ─────────────────────────
+  //
+  // It never used to be, and nothing in the markup does it either: ResponsivePopover
+  // is fully controlled, and cmdk does not close anything on select. The popover
+  // closed because `clear()` emptied the selection, which dropped the count below
+  // two, which unmounted this entire component — popover included. A side effect of
+  // a side effect.
+  //
+  // Take `clear()` away and picking a folder leaves the menu sitting open over the
+  // list. So the close is explicit now, and it happens on CLICK rather than on
+  // success: the menu should answer the press immediately, and the toast is what
+  // reports the outcome.
   const move = (folderId: string | null, name: string) => {
     const ids = [...selectedIds];
-    bulk.mutate({ action: "move", ids, folderId }, { onSuccess: () => { clear(); toast(t("bulk.moved", { count: ids.length, name })); } });
+    setMoveOpen(false);
+    bulk.mutate(
+      { action: "move", ids, folderId },
+      {
+        onSuccess: () => toast(t("bulk.moved", { count: ids.length, name })),
+        onError: () => toast(t("bulk.failed"), { kind: "error" }),
+      }
+    );
   };
   const addTag = (tagId: string, name: string) => {
     const ids = [...selectedIds];
-    bulk.mutate({ action: "tag", ids, tagId }, { onSuccess: () => { clear(); toast(t("bulk.tagged", { count: ids.length, name })); } });
+    setTagOpen(false);
+    bulk.mutate(
+      { action: "tag", ids, tagId },
+      {
+        onSuccess: () => toast(t("bulk.tagged", { count: ids.length, name })),
+        onError: () => toast(t("bulk.failed"), { kind: "error" }),
+      }
+    );
   };
 
   return (
@@ -177,12 +246,68 @@ export function BulkActionBar() {
 
           `p-3` and `gap-2` where the composer uses `p-2.5`: this bar is a row of
           targets to hit, where the composer is mostly one large text field, so its
-          controls get more room around them. */}
-      <div className="surface-elevated composer-bar pointer-events-auto flex w-full max-w-2xl flex-wrap items-center gap-2 p-3">
-        {/* The count is the bar's subject — it names what every button will act on. */}
+          controls get more room around them.
+
+          ── Why the alignment lives HERE and not on the button group ──────────
+          The group used to carry `ml-auto`, which is the obvious way to say "count
+          on the left, actions on the right" and is correct exactly as long as both
+          fit on one line. Auto margins resolve PER FLEX LINE, so the moment the
+          group wraps, `ml-auto` keeps pushing it to the right edge of its own
+          line — and the whole surplus width collects to its left as a gap that
+          looks like a slot something is missing from.
+
+          Nobody saw that in English, where the five labels total 25 characters and
+          never wrap. French spends 43 for the same five (Archiver, Déplacer,
+          Étiqueter, Supprimer, Effacer), wraps at this width, and put an orphan gap
+          on the left of Archiver. A second language is the only reason this was
+          ever visible.
+
+          `justify-between` on the container resolves per line too, so it does the
+          same job when everything fits AND behaves when it wraps: count at the
+          start, actions at the end on one line; each simply at the start of its own
+          line once there are two. No breakpoint, no measuring.
+
+          ── Why this bar is WIDER than the composer it takes over from ────────
+          52rem against the composer's 42rem, and that asymmetry is bought
+          deliberately: at the composer's width the French row does not fit, and no
+          amount of tuning makes it fit.
+
+          Measured in the system font at 14px, because these labels render in the
+          system stack and the numbers are cheap to get exactly rather than estimate.
+          At max-w-2xl a 672px bar is 648px of content, and the French row wants 179px
+          of count ("128 notes sélectionnées") plus 578px of buttons — 765px, over
+          budget by 117. Trimming every button to px-2.5 AND dropping the word off the
+          last one still lands at 651.5px. It was never a padding problem: five French
+          verbs and a full sentence do not fit in 648px by any arrangement. (English
+          wants 624px, which is why none of this was visible until someone read the
+          bar in French.)
+
+          The width is sized for the LONGEST label, and that is the deselect control:
+          "Désélectionner" is 100px where the old "Effacer" was 47. At 832px (808 of
+          content) the French row totals 777px, leaving 31px of headroom at a
+          three-digit count and 22px at four digits; English totals 608px and has
+          200px spare.
+
+          The cost is that the surface is not quite the same size before and after you
+          tick a second note. That is a real loss against the handover this bar is
+          built around, and the alternatives were worse: icon-only buttons would have
+          cost every label in both languages, and dropping the icons would have cost
+          the visual language the note cards use for these same five actions.
+
+          `flex-wrap` stays as the safety net, and it still earns its place — max-w is
+          a cap, not a width, so any window narrow enough to squeeze the bar below
+          about 864px of list area wraps the French row regardless of the number here.
+          A phone is nowhere near it, and there the count taking its own line is the
+          correct answer. */}
+      <div className="surface-elevated composer-bar pointer-events-auto flex w-full max-w-[52rem] flex-wrap items-center justify-between gap-2 p-3">
+        {/* The count is the bar's subject — it names what every button will act on.
+            It names the NOUN too ("2 notes selected", not "2 selected"): this line is
+            the only thing on screen saying what the five buttons below are about to
+            act on, and leaving the reader to supply "notes" made it read as a stray
+            number. Widening the bar is what paid for the extra word. */}
         <span className="px-2 text-sm font-semibold">{t("bulk.selected", { count })}</span>
-        <div className="ml-auto flex flex-wrap items-center gap-1">
-          <Button variant="ghost" size="default" onClick={archive} disabled={bulk.isPending} className="gap-1.5">
+        <div className="flex flex-wrap items-center gap-1">
+          <Button variant="ghost" size="default" onClick={archive} disabled={bulk.isPending} className={ACTION_BTN}>
             <Archive className="h-4 w-4" /> {t("note.archive")}
           </Button>
 
@@ -193,7 +318,7 @@ export function BulkActionBar() {
             align="end"
             contentClassName="w-60 p-0"
             trigger={
-              <Button variant="ghost" size="default" className="gap-1.5">
+              <Button variant="ghost" size="default" className={ACTION_BTN}>
                 <FolderInput className="h-4 w-4" /> {t("bulk.move")}
               </Button>
             }
@@ -223,7 +348,7 @@ export function BulkActionBar() {
             align="end"
             contentClassName="w-56 p-0"
             trigger={
-              <Button variant="ghost" size="default" className="gap-1.5">
+              <Button variant="ghost" size="default" className={ACTION_BTN}>
                 {/* A hash, not a luggage tag. Tags are written `#name` everywhere they
                     appear — on the cards, in the sidebar, in the tag page's title — and
                     this trigger was the one place in the app still showing the other
@@ -246,13 +371,18 @@ export function BulkActionBar() {
             </Command>
           </ResponsivePopover>
 
-          <Button variant="ghost" size="default" onClick={del} disabled={bulk.isPending} className="gap-1.5 text-destructive hover:text-destructive">
+          <Button variant="ghost" size="default" onClick={del} disabled={bulk.isPending} className={`${ACTION_BTN} text-destructive hover:text-destructive`}>
             <Trash2 className="h-4 w-4" /> {t("common.delete")}
           </Button>
           {/* The way out. Labelled on desktop, icon-only on phones where horizontal
-              room is scarce — the aria-label carries the meaning either way. */}
-          <Button variant="ghost" size="default" onClick={clear} aria-label={t("bulk.unselectAll")} className="gap-1.5">
-            <X className="h-4 w-4" /> <span className="hidden sm:inline">{t("bulk.clear")}</span>
+              room is scarce — the aria-label carries the meaning either way.
+
+              The visible label is the short verb and the accessible name is the fuller
+              phrase ("Deselect" / "Deselect all"), which is the right way round: the
+              eye has the count sitting three inches to the left to supply the scope,
+              and a screen reader announcing a bare "Deselect" does not. */}
+          <Button variant="ghost" size="default" onClick={clear} aria-label={t("bulk.deselectAll")} className={ACTION_BTN}>
+            <X className="h-4 w-4" /> <span className="hidden sm:inline">{t("bulk.deselect")}</span>
           </Button>
         </div>
       </div>

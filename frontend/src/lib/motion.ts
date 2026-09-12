@@ -551,3 +551,16 @@ export const LANGUAGE_VEIL_OUT_MS = 420;
  *  motion. The gap between them (~880ms) is the translated-but-covered pause that
  *  makes the change feel like work. */
 export const LANGUAGE_SWAP_DELAY_MS = 320;
+
+/** The folder colour picker's "More colors" row (Sidebar.tsx): how long the reveal
+ *  takes to open or close.
+ *
+ *  Driven by the Web Animations API rather than a CSS transition, the same way the
+ *  editor toolbar eases its own height change — the row's open height depends on how
+ *  its 15 swatches wrap, which is never known ahead of time, so the animation reads
+ *  the real `scrollHeight` at click time instead of guessing a max-height.
+ *
+ *  220ms: quick enough that toggling twice in a row doesn't feel like a wait, long
+ *  enough that the row visibly grows rather than snapping — a plain reveal inside a
+ *  small popover, not a physical object arriving from somewhere. */
+export const FOLDER_COLOR_REVEAL_MS = 220;

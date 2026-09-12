@@ -137,6 +137,17 @@ const GLOBAL: Shortcut[] = [
     // Saying so is the difference between a reference and a wish.
     when: "shortcut.when.note",
   },
+  {
+    keys: ["Escape"],
+    action: "shortcut.deselectAll",
+    // Not Layout.tsx: this one lives with the selection it clears, in the list
+    // screen, because only a page inside the selection provider can reach it.
+    source: "pages/ListPages.tsx",
+    // Guarded on there being a selection, and it yields to an open note, a popover
+    // or a dialog — so with the note entry above, Escape always does the one thing
+    // on top rather than two at once.
+    when: "shortcut.when.selection",
+  },
 ];
 
 /** Formatting marks. All TipTap defaults except the highlight, which is ours.

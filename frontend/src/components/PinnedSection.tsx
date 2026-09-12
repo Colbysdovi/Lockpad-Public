@@ -1,6 +1,8 @@
+import { useEffect } from "react";
 import { Pin } from "@/components/icons";
 import { usePins } from "@/lib/hooks";
 import { NoteCard } from "./NoteCard";
+import { useSelection } from "@/lib/useSelection";
 import { useT } from "@/lib/i18n";
 
 // Per-page "Pinned" section (spec: note hover-state §2). Renders above the
@@ -13,6 +15,25 @@ export function PinnedSection({ scope }: { scope: string }) {
   const query = usePins(scope);
 
   const notes = query.data?.notes ?? [];
+
+  // Publish this section's order so a Shift+click range can be computed against it.
+  // Rank 0, because these cards render above the main list (rank 1) — concatenated,
+  // the two ranks are the order the user actually sees, which is what lets a range
+  // run from a pinned note into the list below it.
+  //
+  // The effect sits ABOVE the early return, because hooks cannot be skipped. That is
+  // also what keeps it honest when the section is empty or still loading: it
+  // registers an empty run, so the pinned prefix disappears from the order the moment
+  // the last pin does, rather than lingering as ids that are no longer on screen.
+  const { setRangeSegment } = useSelection();
+  const idsKey = notes.map((n) => n.id).join(",");
+  useEffect(() => {
+    setRangeSegment("pinned", 0, notes.map((n) => n.id));
+    return () => setRangeSegment("pinned", 0, []);
+    // Keyed on the joined ids rather than the array, which is rebuilt every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey, setRangeSegment]);
+
   if (query.isLoading || notes.length === 0) return null;
 
   return (

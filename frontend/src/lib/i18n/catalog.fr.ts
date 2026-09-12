@@ -68,8 +68,38 @@ export const fr: Catalog = {
   "nav.field.namePlaceholder.folder": "Nom du dossier",
   "nav.field.namePlaceholder.tag": "Nom de l’étiquette",
   "nav.field.color": "Couleur",
-  "nav.field.colorHint": "Choisissez une couleur, ou saisissez une valeur hexadécimale.",
+  "nav.field.presets": "Palette",
+  // Feminine, agreeing with « couleur » in the field label above it.
+  "nav.field.custom": "Personnalisée",
+  "nav.field.customHex": "Couleur personnalisée, en valeur hexadécimale",
   "nav.field.colorSwatch": "Couleur {value}",
+  "nav.field.moreColors": "Plus de couleurs",
+  "nav.field.fewerColors": "Moins de couleurs",
+  "nav.field.colorName.softMint": "Menthe clair",
+  "nav.field.colorName.softSky": "Ciel clair",
+  "nav.field.colorName.softIndigo": "Indigo clair",
+  "nav.field.colorName.softViolet": "Violet clair",
+  "nav.field.colorName.softPink": "Rose clair",
+  "nav.field.colorName.softRed": "Rouge clair",
+  "nav.field.colorName.softOrange": "Orange clair",
+  "nav.field.colorName.softAmber": "Ambre clair",
+  "nav.field.colorName.softGreen": "Vert clair",
+  "nav.field.colorName.softTeal": "Turquoise clair",
+  "nav.field.colorName.deepMint": "Menthe foncé",
+  "nav.field.colorName.deepSky": "Ciel foncé",
+  "nav.field.colorName.deepIndigo": "Indigo foncé",
+  "nav.field.colorName.deepViolet": "Violet foncé",
+  "nav.field.colorName.deepPink": "Rose foncé",
+  "nav.field.colorName.deepRed": "Rouge foncé",
+  "nav.field.colorName.deepOrange": "Orange foncé",
+  "nav.field.colorName.deepAmber": "Ambre foncé",
+  "nav.field.colorName.deepGreen": "Vert foncé",
+  "nav.field.colorName.deepTeal": "Turquoise foncé",
+  "nav.field.colorName.raspberry": "Framboise",
+  "nav.field.colorName.fuchsia": "Fuchsia",
+  "nav.field.colorName.orchid": "Orchidée",
+  "nav.field.colorName.cyan": "Cyan",
+  "nav.field.colorName.lime": "Vert citron",
   "nav.saveFailed": "Enregistrement impossible. Veuillez réessayer.",
 
   "nav.form.save": "Enregistrer les modifications",
@@ -131,6 +161,7 @@ export const fr: Catalog = {
   "shortcut.newNote": "Nouvelle note",
   "shortcut.toggleSidebar": "Afficher ou masquer la barre latérale",
   "shortcut.closeNote": "Fermer la note",
+  "shortcut.deselectAll": "Désélectionner toutes les notes",
   "shortcut.bold": "Gras",
   "shortcut.italic": "Italique",
   "shortcut.strikethrough": "Barré",
@@ -164,6 +195,7 @@ export const fr: Catalog = {
   "shortcut.when.list": "dans une liste",
   "shortcut.when.composer": "dans la barre de note rapide",
   "shortcut.when.note": "lorsqu’une note est ouverte",
+  "shortcut.when.selection": "lorsque des notes sont sélectionnées",
   "shortcut.key.up": "Flèche haut",
   "shortcut.key.down": "Flèche bas",
   "image.addDescription": "Ajouter une description",
@@ -206,7 +238,7 @@ export const fr: Catalog = {
   },
 
   "list.archivedNotes": "Notes archivées",
-  "bulk.unselectAll": "Tout désélectionner",
+  "bulk.deselectAll": "Tout désélectionner",
   "bulk.moveToFolderPlaceholder": "Déplacer vers un dossier…",
   "bulk.addTagPlaceholder": "Ajouter une étiquette…",
   "image.resize": "Redimensionner l’image",
@@ -577,11 +609,18 @@ export const fr: Catalog = {
   "selector.tags.create": "Créer « {name} »",
   "selector.tags.remove": "Retirer l’étiquette #{name}",
 
+  // "2 sélectionnées" leaned on the feminine agreement to imply "notes" and left the
+  // noun to the reader. Named outright now, as in English.
   "bulk.selected": {
-    one: "{count} sélectionnée",
-    other: "{count} sélectionnées",
+    one: "{count} note sélectionnée",
+    other: "{count} notes sélectionnées",
   },
-  "bulk.clear": "Effacer",
+  // Was "Effacer", which means erase. In a row with Supprimer next to it, the one
+  // control that touches nothing was the one that sounded like it deleted the notes.
+  // "Désélectionner" is the exact counterpart of "sélectionnées" in the count beside
+  // it, and it is 100px wide against Effacer's 47 — which is what the bar's width is
+  // sized for. See BulkActionBar.
+  "bulk.deselect": "Désélectionner",
   "bulk.moveToFolder": "Déplacer vers un dossier",
   "bulk.addTag": "Ajouter une étiquette",
   "bulk.noFolder": "Aucun dossier trouvé.",
@@ -602,6 +641,7 @@ export const fr: Catalog = {
     one: "{count} note étiquetée avec #{name}",
     other: "{count} notes étiquetées avec #{name}",
   },
+  "bulk.failed": "Cette modification n’a pas pu être appliquée. Rien n’a été modifié.",
 
   // Same word as "Cancel" in French, deliberately a different key — see the glossary.
   "common.undo": "Annuler",
